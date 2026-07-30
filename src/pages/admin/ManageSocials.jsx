@@ -10,7 +10,7 @@ export default function ManageSocials() {
       </p>
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
         <p className="text-sm text-slate-300">
-          Pengaturan tautan media sosial dan paper ilmiah.
+          Pengaturan Halo tautan media sosial dan paper ilmiah.
         </p>
       </div>
     </div>

@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FileText, Share2, Send, Code, Briefcase } from "lucide-react";
+import emailjs from "@emailjs/browser";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -8,14 +10,97 @@ export default function Home() {
     message: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // State untuk menyimpan data Hero yang dinamis dari Supabase
+  const [heroData, setHeroData] = useState({
+    greeting: "Halo, Saya",
+    title: "Professional Developer",
+    description:
+      "Fresh graduate Teknik Informatika dengan keahlian dalam rekayasa perangkat lunak, pengembangan web modern, dan sistem ekstraksi data.",
+    image_url: "",
+  });
+
+  // State untuk efek ketik (typing effect) pada terminal
+  const [displayedText, setDisplayedText] = useState("");
+  const [isStarted, setIsStarted] = useState(false);
+
+  // Ambil data langsung dari Database Supabase saat komponen dimuat
+  useEffect(() => {
+    fetchHeroFromDatabase();
+  }, []);
+
+  // Efek untuk menjalankan animasi ketik setiap kali heroData.description berubah
+  useEffect(() => {
+    if (!heroData?.description) return;
+
+    const textToType = heroData.description;
+    let currentIndex = 0;
+
+    setDisplayedText(""); // Reset teks saat data baru masuk
+    setIsStarted(false);
+
+    const startTimeout = setTimeout(() => {
+      setIsStarted(true);
+
+      const typingInterval = setInterval(() => {
+        if (currentIndex <= textToType.length) {
+          setDisplayedText(textToType.slice(0, currentIndex));
+          currentIndex++;
+        } else {
+          clearInterval(typingInterval);
+        }
+      }, 25); // Kecepatan ketik (semakin kecil semakin cepat)
+
+      return () => clearInterval(typingInterval);
+    }, 300);
+
+    return () => clearTimeout(startTimeout);
+  }, [heroData?.description]);
+
+  const fetchHeroFromDatabase = async () => {
+    const { data, error } = await supabase.from("hero").select("*").single();
+    if (data) {
+      setHeroData(data);
+    } else if (error) {
+      console.error("Gagal mengambil data hero:", error.message);
+    }
+  };
 
   const handleContactSubmit = (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) return;
 
-    setSubmitted(true);
-    setFormData({ name: "", email: "", message: "" });
-    setTimeout(() => setSubmitted(false), 4000);
+    setLoading(true);
+
+    const templateParams = {
+      from_name: formData.name,
+      from_email: formData.email,
+      message: formData.message,
+    };
+
+    emailjs
+      .send(
+        "service_k1q3tki",
+        "template_k747635",
+        templateParams,
+        "u6nvb-C2A9q4usWzH",
+      )
+      .then(
+        (response) => {
+          console.log("SUCCESS!", response.status, response.text);
+          setSubmitted(true);
+          setFormData({ name: "", email: "", message: "" });
+          setTimeout(() => setSubmitted(false), 4000);
+        },
+        (error) => {
+          console.error("FAILED...", error);
+          alert("Gagal mengirim pesan. Silakan coba lagi.");
+        },
+      )
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   const experiences = [
@@ -42,34 +127,74 @@ export default function Home() {
   return (
     <div className="w-full">
       {/* SLIDE 1: Header & Profile */}
-      <section className="h-screen flex items-center justify-center px-6 bg-gradient-to-b from-slate-900 to-slate-950">
-        <div className="max-w-4xl text-center">
-          <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-indigo-600/20 border-2 border-indigo-500 flex items-center justify-center text-3xl font-bold text-indigo-400">
-            PF
+      <section className="min-h-screen flex items-center justify-center px-6 bg-gradient-to-b from-slate-900 to-slate-950 py-20">
+        <div className="max-w-7xl w-full flex flex-col md:flex-row items-start md:items-center justify-between gap-12">
+          {/* Kolom Kiri: Gambar (Full & Tidak Terpotong) */}
+          <div className="w-full md:w-1/3 flex justify-start">
+            <div className="w-64 h-80 md:w-full md:h-[36rem] flex items-center justify-center overflow-hidden">
+              {heroData.image_url ? (
+                <img
+                  src={heroData.image_url}
+                  alt="Profile"
+                  className="w-full h-full object-contain object-bottom"
+                  style={{
+                    filter:
+                      "drop-shadow(10px 10px 0px rgba(39, 38, 35, 0.5)) drop-shadow(0 15px 20px rgba(252, 211, 77, 0.3))",
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-800 flex items-center justify-center rounded-3xl">
+                  <span className="text-6xl font-bold text-indigo-600">
+                    {heroData.greeting?.charAt(0) || "S"}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-          <h2 className="text-xl md:text-2xl text-indigo-400 font-medium mb-2">
-            Halo, Saya
-          </h2>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4">
-            Professional Developer
-          </h1>
-          <p className="text-slate-400 max-w-xl mx-auto mb-8">
-            Fresh graduate Teknik Informatika dengan keahlian dalam rekayasa
-            perangkat lunak, pengembangan web modern, dan sistem ekstraksi data.
-          </p>
-          <div className="flex justify-center gap-4">
-            <a
-              href="#contact"
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition"
-            >
-              Hubungi Saya
-            </a>
-            <a
-              href="#about"
-              className="px-6 py-3 border border-slate-700 hover:border-slate-500 font-medium rounded-lg transition"
-            >
-              Tentang Saya
-            </a>
+
+          {/* Kolom Kanan: Teks & Terminal dengan Efek Ketik */}
+          <div className="w-full md:w-[60%] text-left mx-0">
+            <h2 className="text-xl md:text-2xl text-indigo-400 font-medium mb-2">
+              {heroData.greeting}
+            </h2>
+            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-slate-50">
+              {heroData.title}
+            </h1>
+
+            {/* Terminal Box dengan Efek Ketik (Typing Effect) */}
+            <div className="bg-slate-950 border border-slate-700 rounded-lg shadow-xl mb-8 overflow-hidden w-full max-w-none font-mono text-sm">
+              {/* Header Terminal (Titik-titik kontrol) */}
+              <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 border-b border-slate-700">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              </div>
+
+              {/* Isi Terminal */}
+              <div className="p-5 text-slate-300 relative min-h-[110px]">
+                <p
+                  className={`relative z-10 transition-opacity duration-700 ${isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"}`}
+                >
+                  {displayedText}
+                  <span className="inline-block w-2 h-4 bg-green-400 ml-1 animate-pulse align-middle"></span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-start gap-4">
+              <a
+                href="#contact"
+                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition shadow-lg shadow-indigo-500/20"
+              >
+                Hubungi Saya
+              </a>
+              <a
+                href="#about"
+                className="px-6 py-3 border border-slate-700 hover:border-slate-500 font-medium rounded-lg transition"
+              >
+                Tentang Saya
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -244,7 +369,7 @@ export default function Home() {
 
           {submitted && (
             <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-center text-sm">
-              Pesan berhasil dikirim!
+              Pesan berhasil dikirim langsung ke email!
             </div>
           )}
 
@@ -299,13 +424,38 @@ export default function Home() {
             </div>
             <button
               type="submit"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Send size={16} /> Kirim Pesan
+              <Send size={16} /> {loading ? "Mengirim..." : "Kirim Pesan"}
             </button>
           </form>
         </div>
       </section>
+      {/* Tombol WhatsApp Mengambang di Kiri Bawah */}
+      <a
+        href="https://wa.me/+62881024056345?text=Halo,%20saya%20tertarik%20dengan%20portofolio%20Anda."
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
+        aria-label="Chat WhatsApp"
+      >
+        {/* Menggunakan SVG ikon WhatsApp agar langsung tampil tanpa tambahan dependensi */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="lucide lucide-message-circle"
+        >
+          <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+        </svg>
+      </a>
     </div>
   );
 }

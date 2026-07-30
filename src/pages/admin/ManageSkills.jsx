@@ -8,7 +8,7 @@ export default function ManageSkills() {
       </p>
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
         <p className="text-sm text-slate-300">
-          Daftar kelola keahlian teknis (React, Tailwind, Python, dll).
+          Daftar Halo kelola keahlian teknis (React, Tailwind, Python, dll).
         </p>
       </div>
     </div>
