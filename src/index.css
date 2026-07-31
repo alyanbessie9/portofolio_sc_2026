@@ -1,3 +1,25 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-infinite-scroll {
+  display: flex;
+  width: max-content;
+  animation: scroll 35s linear infinite;
+  /* Memungkinkan interaksi sentuh / scroll native di perangkat mobile/touchscreen */
+  touch-action: pan-x;
+}
+
+/* Pause animasi otomatis saat kursor berada di atas area scroll agar pengguna bisa membaca atau scroll manual dengan nyaman */
+.group-scroll:hover .animate-infinite-scroll {
+  animation-play-state: paused;
+}

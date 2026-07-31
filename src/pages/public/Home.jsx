@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { FileText, Share2, Send, Code, Briefcase } from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { supabase } from "../../lib/supabaseClient";
+import FloatingDateTime from "../../components/FloatingDateTime";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -21,14 +22,40 @@ export default function Home() {
     image_url: "",
   });
 
+  // State untuk menyimpan data Experience dinamis dari Supabase
+  const [experiences, setExperiences] = useState([]);
+
   // State untuk efek ketik (typing effect) pada terminal
   const [displayedText, setDisplayedText] = useState("");
   const [isStarted, setIsStarted] = useState(false);
 
-  // Ambil data langsung dari Database Supabase saat komponen dimuat
+  // Ambil data Hero & Experience dari Database Supabase saat komponen dimuat
   useEffect(() => {
     fetchHeroFromDatabase();
+    fetchExperiencesFromDatabase();
   }, []);
+
+  const fetchHeroFromDatabase = async () => {
+    const { data, error } = await supabase.from("hero").select("*").single();
+    if (data) {
+      setHeroData(data);
+    } else if (error) {
+      console.error("Gagal mengambil data hero:", error.message);
+    }
+  };
+
+  const fetchExperiencesFromDatabase = async () => {
+    const { data, error } = await supabase
+      .from("experiences")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (data) {
+      setExperiences(data);
+    } else if (error) {
+      console.error("Gagal mengambil data experiences:", error.message);
+    }
+  };
 
   // Efek untuk menjalankan animasi ketik setiap kali heroData.description berubah
   useEffect(() => {
@@ -37,7 +64,7 @@ export default function Home() {
     const textToType = heroData.description;
     let currentIndex = 0;
 
-    setDisplayedText(""); // Reset teks saat data baru masuk
+    setDisplayedText("");
     setIsStarted(false);
 
     const startTimeout = setTimeout(() => {
@@ -50,22 +77,13 @@ export default function Home() {
         } else {
           clearInterval(typingInterval);
         }
-      }, 25); // Kecepatan ketik (semakin kecil semakin cepat)
+      }, 25);
 
       return () => clearInterval(typingInterval);
     }, 300);
 
     return () => clearTimeout(startTimeout);
   }, [heroData?.description]);
-
-  const fetchHeroFromDatabase = async () => {
-    const { data, error } = await supabase.from("hero").select("*").single();
-    if (data) {
-      setHeroData(data);
-    } else if (error) {
-      console.error("Gagal mengambil data hero:", error.message);
-    }
-  };
 
   const handleContactSubmit = (e) => {
     e.preventDefault();
@@ -103,43 +121,24 @@ export default function Home() {
       });
   };
 
-  const experiences = [
-    {
-      role: "Frontend Developer",
-      company: "PT Teknologi Solusi",
-      period: "2025 - Sekarang",
-      desc: "Membangun antarmuka web responsif menggunakan React dan Tailwind CSS.",
-    },
-    {
-      role: "Web Crawler Developer",
-      company: "Academic Research Project",
-      period: "2025",
-      desc: "Mengembangkan sistem ekstraksi data pustaka otomatis menggunakan Python.",
-    },
-    {
-      role: "Junior Software Engineer",
-      company: "Magang Mandiri",
-      period: "2024 - 2025",
-      desc: "Mengoptimalkan performa kueri basis data dan arsitektur komponen.",
-    },
-  ];
-
   return (
     <div className="w-full">
+      <FloatingDateTime />
+
       {/* SLIDE 1: Header & Profile */}
-      <section className="min-h-screen flex items-center justify-center px-6 bg-gradient-to-b from-slate-900 to-slate-950 py-20">
-        <div className="max-w-7xl w-full flex flex-col md:flex-row items-start md:items-center justify-between gap-12">
-          {/* Kolom Kiri: Gambar (Full & Tidak Terpotong) */}
-          <div className="w-full md:w-1/3 flex justify-start">
-            <div className="w-64 h-80 md:w-full md:h-[36rem] flex items-center justify-center overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 bg-gradient-to-b from-slate-900 to-slate-950 py-16 md:py-20 overflow-hidden">
+        <div className="max-w-7xl w-full flex flex-col md:flex-row items-center md:items-center justify-between gap-8 md:gap-12">
+          {/* Kolom Kiri: Gambar (Responsif & Rapi di HP) */}
+          <div className="w-full md:w-1/3 flex justify-center md:justify-start">
+            <div className="w-56 h-72 sm:w-64 sm:h-80 md:w-full md:h-[36rem] flex items-center justify-center overflow-hidden">
               {heroData.image_url ? (
                 <img
                   src={heroData.image_url}
                   alt="Profile"
-                  className="w-full h-full object-contain object-bottom"
+                  className="w-full h-full object-contain object-bottom transition-transform duration-500 hover:scale-105"
                   style={{
                     filter:
-                      "drop-shadow(10px 10px 0px rgba(39, 38, 35, 0.5)) drop-shadow(0 15px 20px rgba(252, 211, 77, 0.3))",
+                      "drop-shadow(8px 8px 0px rgba(39, 38, 35, 0.5)) drop-shadow(0 15px 20px rgba(252, 211, 77, 0.3))",
                   }}
                 />
               ) : (
@@ -152,47 +151,43 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Teks & Terminal dengan Efek Ketik */}
-          <div className="w-full md:w-[60%] text-left mx-0">
-            <h2 className="text-xl md:text-2xl text-indigo-400 font-medium mb-2">
+          {/* Kolom Kanan: Teks & Deskripsi Elegan */}
+          <div className="w-full md:w-[60%] text-center md:text-left">
+            <div className="inline-block px-3 py-1 mb-3 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium animate-pulse">
               {heroData.greeting}
-            </h2>
-            <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-4 text-slate-50">
+            </div>
+
+            <h1
+              className="text-4xl sm:text-5xl md:text-7xl font-black tracking-wider mb-4 leading-none"
+              style={{
+                fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+                textTransform: "capitalize",
+                color: "#fffaef",
+                textShadow: `
+                  1px 1px 0px #e6d5b8,
+                  2px 2px 0px #d4bc96,
+                  3px 3px 0px #c2a375,
+                  4px 4px 0px #b08953,
+                  5px 5px 10px rgba(0, 0, 0, 0.4)
+                `,
+              }}
+            >
               {heroData.title}
             </h1>
 
-            {/* Terminal Box dengan Efek Ketik (Typing Effect) */}
-            <div className="bg-slate-950 border border-slate-700 rounded-lg shadow-xl mb-8 overflow-hidden w-full max-w-none font-mono text-sm">
-              {/* Header Terminal (Titik-titik kontrol) */}
-              <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 border-b border-slate-700">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              </div>
-
-              {/* Isi Terminal */}
-              <div className="p-5 text-slate-300 relative min-h-[110px]">
-                <p
-                  className={`relative z-10 transition-opacity duration-700 ${isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"}`}
-                >
-                  {displayedText}
-                  <span className="inline-block w-2 h-4 bg-green-400 ml-1 animate-pulse align-middle"></span>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-start gap-4">
+            {/* Tombol Navigasi */}
+            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
               <a
                 href="#contact"
-                className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition shadow-lg shadow-indigo-500/20"
+                className="w-full sm:w-auto text-center px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5"
               >
-                Hubungi Saya
+                Contact Me
               </a>
               <a
                 href="#about"
-                className="px-6 py-3 border border-slate-700 hover:border-slate-500 font-medium rounded-lg transition"
+                className="w-full sm:w-auto text-center px-8 py-3.5 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-medium rounded-xl transition-all duration-300 hover:-translate-y-0.5"
               >
-                Tentang Saya
+                About Me
               </a>
             </div>
           </div>
@@ -205,41 +200,88 @@ export default function Home() {
         className="min-h-screen py-20 px-6 bg-slate-950 flex flex-col justify-center"
       >
         <div className="max-w-6xl mx-auto w-full">
-          <h2 className="text-3xl font-bold mb-4 text-center">
-            Tentang & Pengalaman
+          <h2 className="text-3xl font-bold mb-4 text-center text-slate-50">
+            About Me
           </h2>
-          <p className="text-slate-400 text-center max-w-2xl mx-auto mb-12">
-            Berfokus pada kualitas kode yang bersih, efisien, serta pengalaman
-            pengguna yang optimal.
-          </p>
+          <p className="text-slate-400 text-center max-w-2xl mx-auto mb-12"></p>
 
-          <div className="mb-12 bg-slate-900/50 border border-slate-800 p-6 rounded-2xl">
-            <h3 className="text-xl font-semibold mb-3 text-indigo-400">
-              Tentang Saya
-            </h3>
-            <p className="text-slate-300 leading-relaxed">
-              Lulusan baru Teknik Informatika yang memiliki dasar analisis kuat
-              dalam struktur data, algoritma, serta siklus hidup pengembangan
-              perangkat lunak (SDLC). Berpengalaman dalam merancang antarmuka
-              interaktif dan sistem otomatisasi web.
-            </p>
+          {/* Terminal Box */}
+          <div className="mb-12 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden w-full font-mono text-sm">
+            {/* Header Terminal */}
+            <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 border-b border-slate-700">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span className="text-xs text-slate-400 ml-2">about-me.sh</span>
+            </div>
+
+            {/* Isi Terminal dengan Efek Ketik */}
+            <div className="p-6 text-slate-300 relative min-h-[100px]">
+              <p
+                className={`relative z-10 transition-opacity duration-700 leading-relaxed ${isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"}`}
+              >
+                {displayedText}
+                <span className="inline-block w-2 h-4 bg-green-400 ml-1 animate-pulse align-middle"></span>
+              </p>
+            </div>
           </div>
 
-          <h3 className="text-xl font-semibold mb-6">Pengalaman Profesional</h3>
-          <div className="flex gap-6 overflow-x-auto pb-4">
-            {experiences.map((exp, idx) => (
-              <div
-                key={idx}
-                className="min-w-[300px] md:min-w-[350px] bg-slate-900 border border-slate-800 p-6 rounded-xl flex-shrink-0"
-              >
-                <span className="text-xs text-indigo-400 font-semibold px-2.5 py-1 bg-indigo-500/10 rounded-full">
-                  {exp.period}
-                </span>
-                <h4 className="text-lg font-bold mt-4 mb-1">{exp.role}</h4>
-                <p className="text-sm text-slate-400 mb-3">{exp.company}</p>
-                <p className="text-slate-300 text-sm">{exp.desc}</p>
-              </div>
-            ))}
+          <h3 className="text-xl font-semibold mb-6 text-slate-50">
+            Experience
+          </h3>
+          {/* Container utama dengan pembungkus group-scroll */}
+          <div className="w-full relative py-4 group-scroll">
+            {/* Efek gradasi opsional di sisi kiri dan kanan */}
+            <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none"></div>
+
+            {/* Area overflow-x-auto agar tetap bisa di-scroll secara manual oleh user */}
+            <div className="overflow-x-auto no-scrollbar pb-4">
+              {experiences.length > 0 ? (
+                <div className="flex gap-6 animate-infinite-scroll">
+                  {/* Duplikat array agar infinite loop tetap mulus */}
+                  {[...experiences, ...experiences].map((exp, index) => {
+                    const CardWrapper = exp.url ? "a" : "div";
+                    const wrapperProps = exp.url
+                      ? {
+                          href: exp.url,
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          className:
+                            "min-w-[300px] md:min-w-[350px] bg-slate-900 border border-slate-800 p-6 rounded-xl flex-shrink-0 block transition-all duration-300 hover:border-indigo-500 cursor-pointer",
+                        }
+                      : {
+                          className:
+                            "min-w-[300px] md:min-w-[350px] bg-slate-900 border border-slate-800 p-6 rounded-xl flex-shrink-0 block",
+                        };
+
+                    return (
+                      <CardWrapper key={`${exp.id}-${index}`} {...wrapperProps}>
+                        <span className="text-xs text-indigo-400 font-semibold px-2.5 py-1 bg-indigo-500/10 rounded-full">
+                          {exp.period}
+                        </span>
+                        <h4 className="text-lg font-bold mt-4 mb-1 text-slate-50 flex items-center justify-between">
+                          {exp.role}
+                          {exp.url && (
+                            <span className="text-xs text-indigo-400 font-normal">
+                              🔗 Kunjungi
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-sm text-slate-400 mb-3">
+                          {exp.company}
+                        </p>
+                        <p className="text-slate-300 text-sm">{exp.desc}</p>
+                      </CardWrapper>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm italic text-center">
+                  Belum ada data pengalaman kerja.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>
