@@ -16,7 +16,6 @@ import ManageHero from "./ManageHero";
 import ManageAbout from "./ManageAbout";
 import ManageSkills from "./ManageSkills";
 import ManageSocials from "./ManageSocials";
-import ManageMessages from "./ManageMessages";
 
 export default function DashboardOverview() {
   const [activeMenu, setActiveMenu] = useState("overview");
@@ -161,7 +160,6 @@ export default function DashboardOverview() {
         {activeMenu === "about" && <ManageAbout />}
         {activeMenu === "skills" && <ManageSkills />}
         {activeMenu === "socials" && <ManageSocials />}
-        {activeMenu === "messages" && <ManageMessages />}
       </main>
     </div>
   );

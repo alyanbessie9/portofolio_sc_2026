@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Share2, Send, Code, Briefcase } from "lucide-react";
+import { Share2, Send, Code, Briefcase } from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { supabase } from "../../lib/supabaseClient";
 import FloatingDateTime from "../../components/FloatingDateTime";
@@ -15,24 +15,29 @@ export default function Home() {
 
   // State untuk menyimpan data Hero yang dinamis dari Supabase
   const [heroData, setHeroData] = useState({
-    greeting: "Halo, Saya",
-    title: "Professional Developer",
+    greeting: "Hello, I'm",
+    title: "Cyber Security Engineer",
     description:
-      "Fresh graduate Teknik Informatika dengan keahlian dalam rekayasa perangkat lunak, pengembangan web modern, dan sistem ekstraksi data.",
+      "Informatics Engineering graduate with strong foundations in digital forensics, CTF challenges, system security research, and modern web applications.",
     image_url: "",
   });
 
   // State untuk menyimpan data Experience dinamis dari Supabase
   const [experiences, setExperiences] = useState([]);
 
+  // State untuk arsip & modal (Dipindah ke level atas komponen)
+  const [archives, setArchives] = useState([]);
+  const [selectedArchive, setSelectedArchive] = useState(null);
+
   // State untuk efek ketik (typing effect) pada terminal
   const [displayedText, setDisplayedText] = useState("");
   const [isStarted, setIsStarted] = useState(false);
 
-  // Ambil data Hero & Experience dari Database Supabase saat komponen dimuat
+  // Ambil data Hero, Experience, & Archives dari Database Supabase saat komponen dimuat
   useEffect(() => {
     fetchHeroFromDatabase();
     fetchExperiencesFromDatabase();
+    fetchArchivesFromDatabase();
   }, []);
 
   const fetchHeroFromDatabase = async () => {
@@ -40,7 +45,7 @@ export default function Home() {
     if (data) {
       setHeroData(data);
     } else if (error) {
-      console.error("Gagal mengambil data hero:", error.message);
+      console.error("Failed to fetch hero data:", error.message);
     }
   };
 
@@ -53,8 +58,18 @@ export default function Home() {
     if (data) {
       setExperiences(data);
     } else if (error) {
-      console.error("Gagal mengambil data experiences:", error.message);
+      console.error("Failed to fetch experiences data:", error.message);
     }
+  };
+
+  const fetchArchivesFromDatabase = async () => {
+    const { data, error } = await supabase
+      .from("archives")
+      .select("*")
+      .order("id", { ascending: false });
+
+    if (data) setArchives(data);
+    if (error) console.error("Failed to fetch archives data:", error.message);
   };
 
   // Efek untuk menjalankan animasi ketik setiap kali heroData.description berubah
@@ -113,7 +128,7 @@ export default function Home() {
         },
         (error) => {
           console.error("FAILED...", error);
-          alert("Gagal mengirim pesan. Silakan coba lagi.");
+          alert("Failed to send message. Please try again.");
         },
       )
       .finally(() => {
@@ -128,7 +143,7 @@ export default function Home() {
       {/* SLIDE 1: Header & Profile */}
       <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 bg-gradient-to-b from-slate-900 to-slate-950 py-16 md:py-20 overflow-hidden">
         <div className="max-w-7xl w-full flex flex-col md:flex-row items-center md:items-center justify-between gap-8 md:gap-12">
-          {/* Kolom Kiri: Gambar (Responsif & Rapi di HP) */}
+          {/* Kolom Kiri: Gambar */}
           <div className="w-full md:w-1/3 flex justify-center md:justify-start">
             <div className="w-56 h-72 sm:w-64 sm:h-80 md:w-full md:h-[36rem] flex items-center justify-center overflow-hidden">
               {heroData.image_url ? (
@@ -151,7 +166,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Teks & Deskripsi Elegan */}
+          {/* Kolom Kanan: Teks & Deskripsi */}
           <div className="w-full md:w-[60%] text-center md:text-left">
             <div className="inline-block px-3 py-1 mb-3 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium animate-pulse">
               {heroData.greeting}
@@ -203,11 +218,9 @@ export default function Home() {
           <h2 className="text-3xl font-bold mb-4 text-center text-slate-50">
             About Me
           </h2>
-          <p className="text-slate-400 text-center max-w-2xl mx-auto mb-12"></p>
 
           {/* Terminal Box */}
           <div className="mb-12 bg-slate-900 border border-slate-700 rounded-lg shadow-xl overflow-hidden w-full font-mono text-sm">
-            {/* Header Terminal */}
             <div className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 border-b border-slate-700">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
               <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
@@ -215,7 +228,6 @@ export default function Home() {
               <span className="text-xs text-slate-400 ml-2">about-me.sh</span>
             </div>
 
-            {/* Isi Terminal dengan Efek Ketik */}
             <div className="p-6 text-slate-300 relative min-h-[100px]">
               <p
                 className={`relative z-10 transition-opacity duration-700 leading-relaxed ${isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"}`}
@@ -229,17 +241,13 @@ export default function Home() {
           <h3 className="text-xl font-semibold mb-6 text-slate-50">
             Experience
           </h3>
-          {/* Container utama dengan pembungkus group-scroll */}
           <div className="w-full relative py-4 group-scroll">
-            {/* Efek gradasi opsional di sisi kiri dan kanan */}
             <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none"></div>
             <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none"></div>
 
-            {/* Area overflow-x-auto agar tetap bisa di-scroll secara manual oleh user */}
             <div className="overflow-x-auto no-scrollbar pb-4">
               {experiences.length > 0 ? (
                 <div className="flex gap-6 animate-infinite-scroll">
-                  {/* Duplikat array agar infinite loop tetap mulus */}
                   {[...experiences, ...experiences].map((exp, index) => {
                     const CardWrapper = exp.url ? "a" : "div";
                     const wrapperProps = exp.url
@@ -264,7 +272,7 @@ export default function Home() {
                           {exp.role}
                           {exp.url && (
                             <span className="text-xs text-indigo-400 font-normal">
-                              🔗 Kunjungi
+                              🔗 Visit
                             </span>
                           )}
                         </h4>
@@ -278,7 +286,7 @@ export default function Home() {
                 </div>
               ) : (
                 <p className="text-slate-500 text-sm italic text-center">
-                  Belum ada data pengalaman kerja.
+                  No work experience data available.
                 </p>
               )}
             </div>
@@ -286,46 +294,122 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SLIDE 3: Skills */}
-      <section className="min-h-screen py-20 px-6 bg-slate-900/50 flex flex-col justify-center">
-        <div className="max-w-4xl mx-auto w-full text-center">
-          <h2 className="text-3xl font-bold mb-4">Keahlian & Teknologi</h2>
-          <p className="text-slate-400 mb-12">
-            Teknologi dan kerangka kerja yang biasa digunakan dalam pengembangan
-            proyek.
-          </p>
+      {/* SLIDE 3: Archives & Activity */}
+      <section
+        id="archives"
+        className="min-h-screen py-20 px-6 bg-slate-900/50 flex flex-col justify-center relative"
+      >
+        <div className="max-w-3xl mx-auto w-full">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-3 text-slate-50">
+              Archives & Activity
+            </h2>
+            <p className="text-slate-400 text-sm">
+              Activity track record and project documentation.
+            </p>
+          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              "React.js",
-              "Tailwind CSS",
-              "JavaScript (ES6+)",
-              "Python / BeautifulSoup",
-              "Git & GitHub",
-              "RESTful API",
-              "SQL & Databases",
-              "UI/UX Design",
-            ].map((skill, index) => (
-              <div
-                key={index}
-                className="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-indigo-500/50 transition"
-              >
-                <span className="font-medium text-slate-200">{skill}</span>
-              </div>
-            ))}
+          <div className="max-h-[500px] overflow-y-auto pr-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent hover:scrollbar-thumb-indigo-500/50 transition-all">
+            <div className="relative border-l border-slate-800 ml-4 md:ml-32 space-y-8 py-2">
+              {archives.length > 0 ? (
+                [...archives]
+                  .sort((a, b) => b.id - a.id)
+                  .map((item) => (
+                    <div key={item.id} className="relative pl-6 md:pl-8 group">
+                      <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-indigo-500 ring-4 ring-slate-950 group-hover:scale-125 transition-transform"></div>
+
+                      <div className="md:absolute md:-left-32 md:top-1 text-xs font-semibold text-indigo-400 mb-1 md:mb-0">
+                        {item.date}
+                      </div>
+
+                      <div
+                        onClick={() => setSelectedArchive(item)}
+                        className="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-indigo-500/50 transition-all shadow-lg cursor-pointer group-hover:-translate-y-1"
+                      >
+                        <span className="inline-block px-2.5 py-0.5 mb-2 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 rounded-full">
+                          {item.category}
+                        </span>
+                        <h3 className="text-lg font-bold text-slate-100 mb-1 flex items-center justify-between">
+                          {item.title}
+                          <span className="text-xs text-indigo-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity">
+                            📄 View Details &rarr;
+                          </span>
+                        </h3>
+                        <p className="text-sm text-slate-300">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <p className="text-slate-500 text-sm text-center italic">
+                  No archive data available.
+                </p>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* MODAL POPUP */}
+        {selectedArchive && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl p-6 md:p-8 shadow-2xl relative">
+              <button
+                onClick={() => setSelectedArchive(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition"
+              >
+                ✕
+              </button>
+
+              <div className="flex items-center gap-3 mb-3">
+                <span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-500/10 text-indigo-400 rounded-full">
+                  {selectedArchive.category}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {selectedArchive.date}
+                </span>
+              </div>
+
+              <h2 className="text-2xl font-bold text-slate-100 mb-4">
+                {selectedArchive.title}
+              </h2>
+
+              <p className="text-sm text-slate-300 font-medium mb-6 bg-slate-950 p-4 rounded-xl border border-slate-800/60">
+                {selectedArchive.description}
+              </p>
+
+              <div className="space-y-4 text-slate-300 text-sm leading-relaxed mb-8 whitespace-pre-line">
+                {selectedArchive.content ||
+                  "No additional text details available for this archive."}
+              </div>
+
+              {selectedArchive.url && (
+                <div className="pt-4 border-t border-slate-800 flex justify-end">
+                  <a
+                    href={selectedArchive.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition inline-flex items-center gap-2 shadow-lg shadow-indigo-600/20"
+                  >
+                    🔗 Open External Link / File &rarr;
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* SLIDE 4: Media Sosial & Paper */}
+      {/* SLIDE 4: Socials */}
       <section className="min-h-screen py-20 px-6 bg-slate-950 flex flex-col justify-center">
         <div className="max-w-4xl mx-auto w-full text-center">
-          <h2 className="text-3xl font-bold mb-4">Publikasi & Tautan Sosial</h2>
+          <h2 className="text-3xl font-bold mb-4">Socials & Publications</h2>
           <p className="text-slate-400 mb-12">
-            Temukan artikel riset, kode sumber, dan jejaring profesional saya.
+            Explore my source code repositories, professional network, and tech
+            content.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
             <a
               href="https://github.com"
               target="_blank"
@@ -338,7 +422,7 @@ export default function Home() {
               <div>
                 <h4 className="font-bold">GitHub</h4>
                 <p className="text-sm text-slate-400">
-                  Repitori kode sumber proyek & skripsi
+                  Project repositories & source code
                 </p>
               </div>
             </a>
@@ -355,24 +439,7 @@ export default function Home() {
               <div>
                 <h4 className="font-bold">LinkedIn</h4>
                 <p className="text-sm text-slate-400">
-                  Profil profesional dan riwayat karier
-                </p>
-              </div>
-            </a>
-
-            <a
-              href="https://scholar.google.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-4 p-5 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800/80 transition"
-            >
-              <div className="p-3 bg-indigo-600/10 text-indigo-400 rounded-lg">
-                <FileText size={24} />
-              </div>
-              <div>
-                <h4 className="font-bold">Paper / Artikel Akademik</h4>
-                <p className="text-sm text-slate-400">
-                  Dokumentasi penelitian dan karya ilmiah
+                  Professional profile & career history
                 </p>
               </div>
             </a>
@@ -389,7 +456,7 @@ export default function Home() {
               <div>
                 <h4 className="font-bold">TikTok</h4>
                 <p className="text-sm text-slate-400">
-                  Konten edukasi teknologi & pemrograman
+                  Tech education & programming content
                 </p>
               </div>
             </a>
@@ -397,21 +464,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SLIDE 5: Kontak */}
+      {/* SLIDE 5: Contact */}
       <section
         id="contact"
         className="min-h-screen py-20 px-6 bg-slate-900/50 flex flex-col justify-center"
       >
         <div className="max-w-xl mx-auto w-full">
-          <h2 className="text-3xl font-bold mb-4 text-center">Kirim Pesan</h2>
+          <h2 className="text-3xl font-bold mb-4 text-center">Get in Touch</h2>
           <p className="text-slate-400 text-center mb-8">
-            Punya pertanyaan atau penawaran kerja? Kirimkan pesan langsung
-            melalui formulir di bawah.
+            Have questions or a job offer? Send a direct message below.
           </p>
 
           {submitted && (
             <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-center text-sm">
-              Pesan berhasil dikirim langsung ke email!
+              Message successfully sent!
             </div>
           )}
 
@@ -421,7 +487,7 @@ export default function Home() {
           >
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Nama Lengkap
+                Full Name
               </label>
               <input
                 type="text"
@@ -431,7 +497,7 @@ export default function Home() {
                   setFormData({ ...formData, name: e.target.value })
                 }
                 className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100"
-                placeholder="Nama Anda / Perusahaan"
+                placeholder="Your Name / Company"
               />
             </div>
             <div>
@@ -451,7 +517,7 @@ export default function Home() {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">
-                Pesan
+                Message
               </label>
               <textarea
                 rows="4"
@@ -461,7 +527,7 @@ export default function Home() {
                   setFormData({ ...formData, message: e.target.value })
                 }
                 className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100"
-                placeholder="Tulis pesan atau tawaran kerja..."
+                placeholder="Write your message or job offer..."
               ></textarea>
             </div>
             <button
@@ -469,20 +535,20 @@ export default function Home() {
               disabled={loading}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Send size={16} /> {loading ? "Mengirim..." : "Kirim Pesan"}
+              <Send size={16} /> {loading ? "Sending..." : "Send Message"}
             </button>
           </form>
         </div>
       </section>
-      {/* Tombol WhatsApp Mengambang di Kiri Bawah */}
+
+      {/* Tombol WhatsApp Mengambang */}
       <a
-        href="https://wa.me/+62881024056345?text=Halo,%20saya%20tertarik%20dengan%20portofolio%20Anda."
+        href="https://wa.me/+62881024056345?text=Hello,%20I'm%20interested%20in%20your%20portfolio."
         target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
         aria-label="Chat WhatsApp"
       >
-        {/* Menggunakan SVG ikon WhatsApp agar langsung tampil tanpa tambahan dependensi */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="28"
