@@ -1,8 +1,81 @@
 import React, { useState, useEffect } from "react";
-import { Share2, Send, Code, Briefcase } from "lucide-react";
+import {
+  Share2,
+  Send,
+  Code,
+  Briefcase,
+  User,
+  Mail,
+  FolderArchive,
+  Menu,
+  X,
+  ArrowUp,
+} from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { supabase } from "../../lib/supabaseClient";
 import FloatingDateTime from "../../components/FloatingDateTime";
+
+// Komponen Garis Biner Vertikal Lebih Panjang ke Bawah, Samping & Bawah Transparan (Fade)
+function BinaryLineStream() {
+  const [columns, setColumns] = useState([]);
+
+  useEffect(() => {
+    // Jumlah kolom jalur biner yang merentang secara horizontal
+    const colCount = 22;
+    const generatedColumns = Array.from({ length: colCount }).map((_, i) => ({
+      id: i,
+      left: `${(i * 100) / colCount}%`,
+      duration: `${Math.random() * 2 + 1.5}s`,
+      delay: `${Math.random() * 2}s`,
+      // Karakter biner yang mengalir secara vertikal
+      binaryChars: Array.from({ length: 20 })
+        .map(() => Math.round(Math.random()))
+        .join("\n"),
+    }));
+    setColumns(generatedColumns);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl z-0 opacity-90 [mask-image:linear-gradient(to_bottom,black_60%,transparent_100%),linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] [mask-composite:intersect] [-webkit-mask-image:linear-gradient(to_bottom,black_60%,transparent_100%),linear-gradient(to_right,transparent,black_15%,black_85%,transparent)] [-webkit-mask-composite:source-in]">
+      {/* Elemen Garis Cahaya Warna-warni Penghubung dengan Fade di Kiri, Kanan, dan Bawah */}
+      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/30 to-pink-500/20 animate-pulse blur-[1px]"></div>
+
+      {/* Kolom Aliran Biner ke Bawah */}
+      {columns.map((col) => (
+        <div
+          key={col.id}
+          className="absolute text-center font-mono text-[10px] leading-3 tracking-tighter text-indigo-300/60 select-none animate-binary-fall"
+          style={{
+            left: col.left,
+            animationDuration: col.duration,
+            animationDelay: col.delay,
+          }}
+        >
+          {col.binaryChars}
+        </div>
+      ))}
+
+      <style>{`
+        @keyframes binaryFall {
+          0% {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+        }
+        .animate-binary-fall {
+          animation: binaryFall linear infinite;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -32,6 +105,9 @@ export default function Home() {
   // State untuk efek ketik (typing effect) pada terminal
   const [displayedText, setDisplayedText] = useState("");
   const [isStarted, setIsStarted] = useState(false);
+
+  // State untuk membuka/menutup Sidebar Menu Mobile (Hamburger Menu)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Ambil data Hero, Experience, & Archives dari Database Supabase saat komponen dimuat
   useEffect(() => {
@@ -136,13 +212,113 @@ export default function Home() {
       });
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
-    <div className="w-full">
+    <div className="w-full pb-6 md:pb-0">
       <FloatingDateTime />
 
       {/* SLIDE 1: Header & Profile */}
-      <section className="min-h-screen flex items-center justify-center px-4 sm:px-6 bg-gradient-to-b from-slate-900 to-slate-950 py-16 md:py-20 overflow-hidden">
-        <div className="max-w-7xl w-full flex flex-col md:flex-row items-center md:items-center justify-between gap-8 md:gap-12">
+      <section
+        id="home"
+        className="py-16 md:min-h-screen flex items-center justify-center px-4 sm:px-6 bg-gradient-to-b from-slate-900 to-slate-950 md:py-20 overflow-hidden relative"
+      >
+        {/* Navigation untuk Desktop (Tampil flex di layar md ke atas) */}
+        <div className="hidden md:flex absolute top-6 left-6 z-20 items-center gap-6">
+          <a
+            href="#about"
+            className="text-slate-400 hover:text-indigo-400 text-sm font-medium transition-colors duration-200"
+          >
+            About Me
+          </a>
+          <a
+            href="#archives"
+            className="text-slate-400 hover:text-indigo-400 text-sm font-medium transition-colors duration-200"
+          >
+            Archives
+          </a>
+          <a
+            href="#contact"
+            className="text-slate-400 hover:text-indigo-400 text-sm font-medium transition-colors duration-200"
+          >
+            Contact Me
+          </a>
+        </div>
+
+        {/* Tombol Menu Ikon (Hamburger) Khusus Tampilan Mobile */}
+        <div className="md:hidden absolute top-6 left-6 z-30">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2.5 bg-slate-900/80 border border-slate-800 rounded-xl text-indigo-400 hover:text-indigo-300 backdrop-blur-md shadow-lg transition-all"
+            aria-label="Toggle Menu"
+          >
+            {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
+
+        {/* Mobile Sidebar Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className="md:hidden fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
+        {/* Mobile Slide-out Sidebar */}
+        <div
+          className={`md:hidden fixed top-0 left-0 bottom-0 z-50 w-72 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out ${
+            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div>
+            <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800">
+              <span className="font-bold text-slate-100 text-lg">
+                Menu Navigasi
+              </span>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex flex-col space-y-4">
+              <a
+                href="#about"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-400 font-medium transition-all"
+              >
+                <User size={18} />
+                <span>About Me</span>
+              </a>
+              <a
+                href="#archives"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-400 font-medium transition-all"
+              >
+                <FolderArchive size={18} />
+                <span>Archives & Activity</span>
+              </a>
+              <a
+                href="#contact"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 hover:bg-indigo-600/10 text-slate-300 hover:text-indigo-400 font-medium transition-all"
+              >
+                <Mail size={18} />
+                <span>Contact Me</span>
+              </a>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-500 text-center pb-2">
+            Portfolio &bull; {heroData.title}
+          </div>
+        </div>
+
+        <div className="max-w-7xl w-full flex flex-col md:flex-row items-center md:items-center justify-between gap-8 md:gap-12 mt-8 md:mt-0 relative z-10">
           {/* Kolom Kiri: Gambar */}
           <div className="w-full md:w-1/3 flex justify-center md:justify-start">
             <div className="w-56 h-72 sm:w-64 sm:h-80 md:w-full md:h-[36rem] flex items-center justify-center overflow-hidden">
@@ -166,8 +342,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Kolom Kanan: Teks & Deskripsi */}
-          <div className="w-full md:w-[60%] text-center md:text-left">
+          {/* Kolom Kanan: Teks & Garis Biner Panjang ke Bawah, Transparan di Ujung Samping & Bawah */}
+          <div className="w-full md:w-[60%] text-center md:text-left flex flex-col items-center md:items-start">
             <div className="inline-block px-3 py-1 mb-3 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm font-medium animate-pulse">
               {heroData.greeting}
             </div>
@@ -190,20 +366,19 @@ export default function Home() {
               {heroData.title}
             </h1>
 
-            {/* Tombol Navigasi */}
-            <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
-              <a
-                href="#contact"
-                className="w-full sm:w-auto text-center px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:-translate-y-0.5"
-              >
-                Contact Me
-              </a>
-              <a
-                href="#about"
-                className="w-full sm:w-auto text-center px-8 py-3.5 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-medium rounded-xl transition-all duration-300 hover:-translate-y-0.5"
-              >
-                About Me
-              </a>
+            {/* GARIS BINER LEBIH PANJANG KE BAWAH, TRANSPARAN DI SAMPING & BAWAH */}
+            <div
+              className="relative w-full max-w-xl h-16 md:h-20 my-2 overflow-hidden rounded-2xl border border-indigo-500/20 bg-slate-950/60 shadow-inner flex items-center justify-center"
+              style={{
+                maskImage:
+                  "linear-gradient(to right, transparent, black 15%, black 85%, transparent), linear-gradient(to bottom, black 70%, transparent)",
+                WebkitMaskImage:
+                  "linear-gradient(to right, transparent, black 15%, black 85%, transparent), linear-gradient(to bottom, black 70%, transparent)",
+                maskComposite: "intersect",
+                WebkitMaskComposite: "source-in",
+              }}
+            >
+              <BinaryLineStream />
             </div>
           </div>
         </div>
@@ -212,7 +387,7 @@ export default function Home() {
       {/* SLIDE 2: About Me & Experience */}
       <section
         id="about"
-        className="min-h-screen py-20 px-6 bg-slate-950 flex flex-col justify-center"
+        className="py-16 md:min-h-screen px-6 bg-slate-950 flex flex-col justify-center"
       >
         <div className="max-w-6xl mx-auto w-full">
           <h2 className="text-3xl font-bold mb-4 text-center text-slate-50">
@@ -230,7 +405,9 @@ export default function Home() {
 
             <div className="p-6 text-slate-300 relative min-h-[100px]">
               <p
-                className={`relative z-10 transition-opacity duration-700 leading-relaxed ${isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"}`}
+                className={`relative z-10 transition-opacity duration-700 leading-relaxed ${
+                  isStarted ? "opacity-100 blur-none" : "opacity-0 blur-sm"
+                }`}
               >
                 {displayedText}
                 <span className="inline-block w-2 h-4 bg-green-400 ml-1 animate-pulse align-middle"></span>
@@ -297,7 +474,7 @@ export default function Home() {
       {/* SLIDE 3: Archives & Activity */}
       <section
         id="archives"
-        className="min-h-screen py-20 px-6 bg-slate-900/50 flex flex-col justify-center relative"
+        className="py-16 md:min-h-screen px-6 bg-slate-900/50 flex flex-col justify-center relative"
       >
         <div className="max-w-3xl mx-auto w-full">
           <div className="text-center mb-12">
@@ -401,7 +578,7 @@ export default function Home() {
       </section>
 
       {/* SLIDE 4: Socials */}
-      <section className="min-h-screen py-20 px-6 bg-slate-950 flex flex-col justify-center">
+      <section className="py-16 md:min-h-screen px-6 bg-slate-950 flex flex-col justify-center">
         <div className="max-w-4xl mx-auto w-full text-center">
           <h2 className="text-3xl font-bold mb-4">Socials & Publications</h2>
           <p className="text-slate-400 mb-12">
@@ -464,106 +641,198 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SLIDE 5: Contact */}
+      {/* SLIDE 5: Contact & Footer dengan Animasi Aurora yang Lebih Hidup */}
       <section
         id="contact"
-        className="min-h-screen py-20 px-6 bg-slate-900/50 flex flex-col justify-center"
+        className="relative py-20 md:min-h-screen px-6 bg-slate-950 flex flex-col justify-between overflow-hidden isolate"
       >
-        <div className="max-w-xl mx-auto w-full">
-          <h2 className="text-3xl font-bold mb-4 text-center">Get in Touch</h2>
-          <p className="text-slate-400 text-center mb-8">
+        {/* Background Animasi Aurora yang Ditingkatkan (Warna Lebih Kaya & Blur Lebih Lembut) */}
+        <div className="absolute -inset-[100px] opacity-50 pointer-events-none overflow-hidden z-0">
+          {/* Aurora Kiri Atas (Cyan Terang) */}
+          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-cyan-500 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-1"></div>
+
+          {/* Aurora Kanan Tengah (Ungu) */}
+          <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-violet-600 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-2 [animation-delay:-3s]"></div>
+
+          {/* Aurora Bawah (Hijau Toska) */}
+          <div className="absolute -bottom-1/4 left-1/3 w-[800px] h-[600px] bg-emerald-500 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-3 [animation-delay:-5s]"></div>
+
+          {/* Lapisan Gradien Gelap di atas Aurora agar teks tetap terbaca */}
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]"></div>
+        </div>
+
+        {/* Konten Kontak (Dibuat sedikit lebih tebal agar kontras dengan background) */}
+        <div className="max-w-xl mx-auto w-full relative z-10 my-auto">
+          <h2 className="text-4xl md:text-5xl font-extrabold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-white drop-shadow-lg">
+            Get in Touch
+          </h2>
+          <p className="text-slate-300 text-center mb-10 text-base font-medium drop-shadow-sm">
             Have questions or a job offer? Send a direct message below.
           </p>
 
-          {submitted && (
-            <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-center text-sm">
-              Message successfully sent!
-            </div>
-          )}
+          {/* Card Contact dengan Efek Kaca yang Lebih Tebal */}
+          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 p-8 rounded-3xl shadow-xl shadow-indigo-950/30 ring-1 ring-white/5">
+            {submitted && (
+              <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-center text-sm font-medium">
+                Message successfully sent!
+              </div>
+            )}
 
-          <form
-            onSubmit={handleContactSubmit}
-            className="space-y-4 bg-slate-900 border border-slate-800 p-8 rounded-2xl"
-          >
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100"
-                placeholder="Your Name / Company"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100"
-                placeholder="email@domain.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Message
-              </label>
-              <textarea
-                rows="4"
-                required
-                value={formData.message}
-                onChange={(e) =>
-                  setFormData({ ...formData, message: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100"
-                placeholder="Write your message or job offer..."
-              ></textarea>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-medium rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <Send size={16} /> {loading ? "Sending..." : "Send Message"}
-            </button>
-          </form>
+            <form onSubmit={handleContactSubmit} className="space-y-5">
+              {/* Input Fields */}
+              {[
+                {
+                  id: "name",
+                  label: "Full Name",
+                  type: "text",
+                  placeholder: "Your Name / Company",
+                },
+                {
+                  id: "email",
+                  label: "Email",
+                  type: "email",
+                  placeholder: "email@domain.com",
+                },
+              ].map((field) => (
+                <div key={field.id}>
+                  <label
+                    htmlFor={field.id}
+                    className="block text-sm font-semibold text-slate-200 mb-1.5"
+                  >
+                    {field.label}
+                  </label>
+                  <input
+                    type={field.type}
+                    id={field.id}
+                    required
+                    value={formData[field.id]}
+                    onChange={(e) =>
+                      setFormData({ ...formData, [field.id]: e.target.value })
+                    }
+                    className="w-full px-4 py-3 bg-slate-800/70 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder:text-slate-500 transition duration-200"
+                    placeholder={field.placeholder}
+                  />
+                </div>
+              ))}
+
+              {/* Textarea */}
+              <div>
+                <label
+                  htmlFor="message"
+                  className="block text-sm font-semibold text-slate-200 mb-1.5"
+                >
+                  Message
+                </label>
+                <textarea
+                  id="message"
+                  rows="5"
+                  required
+                  value={formData.message}
+                  onChange={(e) =>
+                    setFormData({ ...formData, message: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-800/70 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder:text-slate-500 transition duration-200 resize-none"
+                  placeholder="Write your message or job offer..."
+                ></textarea>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full group py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-base rounded-xl transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-60 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 hover:-translate-y-0.5"
+              >
+                {loading ? (
+                  "Sending..."
+                ) : (
+                  <>
+                    <Send
+                      size={18}
+                      className="group-hover:translate-x-1 transition-transform"
+                    />
+                    Send Message
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
+
+        {/* Keyframes CSS untuk Animasi Aurora yang Halus & Memutar */}
+        <style>{`
+          @keyframes auroraGentle1 {
+            0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+            50% { transform: translateX(50px) translateY(-30px) scale(1.1); }
+          }
+          @keyframes auroraGentle2 {
+            0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+            50% { transform: translateX(-30px) translateY(40px) scale(1.05); }
+          }
+          @keyframes auroraGentle3 {
+            0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
+            50% { transform: translateX(30px) translateY(-20px) scale(1.08); }
+          }
+          .animate-aurora-gentle-1 { animation: auroraGentle1 10s infinite alternate ease-in-out; }
+          .animate-aurora-gentle-2 { animation: auroraGentle2 12s infinite alternate ease-in-out; }
+          .animate-aurora-gentle-3 { animation: auroraGentle3 14s infinite alternate ease-in-out; }
+        `}</style>
+        {/* Footer Minimalis */}
+        <footer className="w-full max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800/60 text-center relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div>
+            &copy; {new Date().getFullYear()} &bull; All Rights Reserved.
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="#home" className="hover:text-indigo-400 transition">
+              Home
+            </a>
+            <a href="#about" className="hover:text-indigo-400 transition">
+              About
+            </a>
+            <a href="#archives" className="hover:text-indigo-400 transition">
+              Archives
+            </a>
+            <a href="#contact" className="hover:text-indigo-400 transition">
+              Contact
+            </a>
+          </div>
+        </footer>
       </section>
 
-      {/* Tombol WhatsApp Mengambang */}
-      <a
-        href="https://wa.me/+62881024056345?text=Hello,%20I'm%20interested%20in%20your%20portfolio."
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
-        aria-label="Chat WhatsApp"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="28"
-          height="28"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="lucide lucide-message-circle"
+      {/* Floating Action Buttons Container (Stacked vertically & perfectly aligned on the right) */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3 items-end">
+        {/* Tombol Panah ke Atas */}
+        <button
+          onClick={scrollToTop}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white w-12 h-12 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
+          aria-label="Back to Top"
         >
-          <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-        </svg>
-      </a>
+          <ArrowUp size={22} />
+        </button>
+
+        {/* Tombol WhatsApp */}
+        <a
+          href="https://wa.me/+62881024056345?text=Hello,%20I'm%20interested%20in%20your%20portfolio."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white w-12 h-12 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
+          aria-label="Chat WhatsApp"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="lucide lucide-message-circle"
+          >
+            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+          </svg>
+        </a>
+      </div>
     </div>
   );
 }
