@@ -2,6 +2,8 @@ import React from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import Home from "../pages/public/Home";
 import Login from "../pages/admin/Login";
+import ArchivePage from "../pages/public/Archive";
+import CategoryPage from "../pages/public/Category";
 import DashboardOverview from "../pages/admin/DashboardOverview";
 
 // Komponen Pelindung dengan pengecekan string "true" yang ketat
@@ -33,6 +35,9 @@ export default function AppRoutes() {
 
       {/* Halaman 404 / Redirect jika rute tidak ditemukan */}
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <Route path="/archive/:date" element={<ArchivePage />} />
+      <Route path="/category/:name" element={<CategoryPage />} />
     </Routes>
   );
 }

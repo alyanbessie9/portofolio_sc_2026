@@ -9,6 +9,9 @@ import {
   LogOut,
   Menu,
   X,
+  FolderTree,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import FloatingDateTime from "../../components/FloatingDateTime";
@@ -18,10 +21,13 @@ import ManageHero from "./ManageHero";
 import ManageAbout from "./ManageAbout";
 import ManageSkills from "./ManageSkills";
 import ManageSocials from "./ManageSocials";
+import ArchivePage from "./ManageArchive";
+import CategoryPage from "./ManageCategory";
 
 export default function DashboardOverview() {
   const [activeMenu, setActiveMenu] = useState("overview");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -30,13 +36,92 @@ export default function DashboardOverview() {
   };
 
   const menuItems = [
-    { id: "overview", label: "Ringkasan", icon: LayoutDashboard },
     { id: "hero", label: "Kelola Hero", icon: User },
     { id: "about", label: "Kelola Tentang", icon: Briefcase },
     { id: "skills", label: "Kelola Keahlian", icon: Code },
     { id: "socials", label: "Kelola Sosial", icon: Share2 },
-    { id: "messages", label: "Kelola Pesan", icon: Mail },
   ];
+
+  // Helper untuk merender menu navigasi (agar reusable antara Desktop & Mobile Sidebar)
+  const renderNavContent = () => (
+    <nav className="space-y-1.5 flex-1 overflow-y-auto">
+      {/* Menu Utama Biasa */}
+      {menuItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            onClick={() => {
+              setActiveMenu(item.id);
+              setIsMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition ${
+              activeMenu === item.id
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+                : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            }`}
+          >
+            <Icon size={18} /> {item.label}
+          </button>
+        );
+      })}
+
+      {/* DROPDOWN KELUARGA KELOLA KATEGORI & ARSIP */}
+      <div className="pt-1">
+        <button
+          onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition ${
+            activeMenu === "kelola-arsip" ||
+            activeMenu === "kelola-kategori-umum"
+              ? "bg-slate-800 text-indigo-400 border border-slate-700"
+              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <FolderTree size={18} />
+            <span>Kelola Kategori</span>
+          </div>
+          {isCategoryDropdownOpen ? (
+            <ChevronUp size={16} />
+          ) : (
+            <ChevronDown size={16} />
+          )}
+        </button>
+
+        {/* SubMenu Dropdown */}
+        {isCategoryDropdownOpen && (
+          <div className="pl-4 pr-2 py-2 space-y-1 mt-1 border-l-2 border-indigo-600/40 ml-4">
+            <button
+              onClick={() => {
+                setActiveMenu("kelola-arsip");
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeMenu === "kelola-arsip"
+                  ? "text-indigo-400 bg-indigo-600/10 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              • Kelola Arsip (Archives)
+            </button>
+            <button
+              onClick={() => {
+                setActiveMenu("kelola-kategori-umum");
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${
+                activeMenu === "kelola-kategori-umum"
+                  ? "text-indigo-400 bg-indigo-600/10 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+              }`}
+            >
+              • Kelola Kategori Sektoral
+            </button>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100 w-full relative">
@@ -87,30 +172,10 @@ export default function DashboardOverview() {
             </button>
           </div>
 
-          <nav className="space-y-1.5">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveMenu(item.id);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition ${
-                    activeMenu === item.id
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  }`}
-                >
-                  <Icon size={18} /> {item.label}
-                </button>
-              );
-            })}
-          </nav>
+          {renderNavContent()}
         </div>
 
-        <div>
+        <div className="pt-4 border-t border-slate-800">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-rose-400 hover:bg-rose-500/10 transition"
@@ -133,27 +198,10 @@ export default function DashboardOverview() {
             </div>
           </div>
 
-          <nav className="space-y-1.5">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveMenu(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition ${
-                    activeMenu === item.id
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  }`}
-                >
-                  <Icon size={18} /> {item.label}
-                </button>
-              );
-            })}
-          </nav>
+          {renderNavContent()}
         </div>
 
-        <div>
+        <div className="pt-4 border-t border-slate-800">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-rose-400 hover:bg-rose-500/10 transition"
@@ -205,6 +253,8 @@ export default function DashboardOverview() {
         {activeMenu === "about" && <ManageAbout />}
         {activeMenu === "skills" && <ManageSkills />}
         {activeMenu === "socials" && <ManageSocials />}
+        {activeMenu === "kelola-arsip" && <ArchivePage />}
+        {activeMenu === "kelola-kategori-umum" && <CategoryPage />}
       </main>
     </div>
   );

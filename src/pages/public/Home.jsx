@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Share2,
   Send,
@@ -10,6 +11,7 @@ import {
   Menu,
   X,
   ArrowUp,
+  ExternalLink,
 } from "lucide-react";
 import emailjs from "@emailjs/browser";
 import { supabase } from "../../lib/supabaseClient";
@@ -98,9 +100,10 @@ export default function Home() {
   // State untuk menyimpan data Experience dinamis dari Supabase
   const [experiences, setExperiences] = useState([]);
 
-  // State untuk arsip & modal (Dipindah ke level atas komponen)
-  const [archives, setArchives] = useState([]);
-  const [selectedArchive, setSelectedArchive] = useState(null);
+  // State untuk data Slide 3 (Dinamis & Terstruktur dari database admin)
+  const [categories, setCategories] = useState([]);
+  const [archiveMonths, setArchiveMonths] = useState([]);
+  const [certifications, setCertifications] = useState([]);
 
   // State untuk efek ketik (typing effect) pada terminal
   const [displayedText, setDisplayedText] = useState("");
@@ -109,11 +112,11 @@ export default function Home() {
   // State untuk membuka/menutup Sidebar Menu Mobile (Hamburger Menu)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Ambil data Hero, Experience, & Archives dari Database Supabase saat komponen dimuat
+  // Ambil semua data dari Database Supabase saat komponen dimuat
   useEffect(() => {
     fetchHeroFromDatabase();
     fetchExperiencesFromDatabase();
-    fetchArchivesFromDatabase();
+    fetchSlideThreeData();
   }, []);
 
   const fetchHeroFromDatabase = async () => {
@@ -138,14 +141,26 @@ export default function Home() {
     }
   };
 
-  const fetchArchivesFromDatabase = async () => {
+  const fetchSlideThreeData = async () => {
+    setLoading(true);
+    // Mengambil data dari tabel `slide_three_items` yang diatur melalui panel admin ManageSkills
     const { data, error } = await supabase
-      .from("archives")
+      .from("slide_three_items")
       .select("*")
       .order("id", { ascending: false });
 
-    if (data) setArchives(data);
-    if (error) console.error("Failed to fetch archives data:", error.message);
+    if (data) {
+      // Memfilter data berdasarkan kategori kolom Slide 3
+      setArchiveMonths(data.filter((item) => item.category === "Archives"));
+      setCategories(data.filter((item) => item.category === "Categories"));
+      setCertifications(
+        data.filter((item) => item.category === "Certifications"),
+      );
+    }
+    if (error) {
+      console.error("Failed to fetch slide three items:", error.message);
+    }
+    setLoading(false);
   };
 
   // Efek untuk menjalankan animasi ketik setiap kali heroData.description berubah
@@ -173,7 +188,7 @@ export default function Home() {
       return () => clearInterval(typingInterval);
     }, 300);
 
-    return () => clearTimeout(startTimeout);
+    return () => clearInterval(startTimeout);
   }, [heroData?.description]);
 
   const handleContactSubmit = (e) => {
@@ -219,7 +234,6 @@ export default function Home() {
   return (
     <div className="w-full pb-6 md:pb-0">
       <FloatingDateTime />
-
       {/* SLIDE 1: Header & Profile */}
       <section
         id="home"
@@ -474,107 +488,114 @@ export default function Home() {
       {/* SLIDE 3: Archives & Activity */}
       <section
         id="archives"
-        className="py-16 md:min-h-screen px-6 bg-slate-900/50 flex flex-col justify-center relative"
+        className="py-20 md:min-h-screen px-6 bg-slate-950 flex flex-col justify-center"
       >
-        <div className="max-w-3xl mx-auto w-full">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-3 text-slate-50">
-              Archives & Activity
+        <div className="max-w-5xl mx-auto w-full">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold mb-3 text-slate-50 tracking-tight">
+              Activities & Documentation
             </h2>
-            <p className="text-slate-400 text-sm">
-              Activity track record and project documentation.
+            <p className="text-slate-400 text-sm max-w-xl mx-auto">
+              Explore technical research logs, classified academic categories,
+              and industry credentials.
             </p>
           </div>
 
-          <div className="max-h-[500px] overflow-y-auto pr-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent hover:scrollbar-thumb-indigo-500/50 transition-all">
-            <div className="relative border-l border-slate-800 ml-4 md:ml-32 space-y-8 py-2">
-              {archives.length > 0 ? (
-                [...archives]
-                  .sort((a, b) => b.id - a.id)
-                  .map((item) => (
-                    <div key={item.id} className="relative pl-6 md:pl-8 group">
-                      <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-indigo-500 ring-4 ring-slate-950 group-hover:scale-125 transition-transform"></div>
-
-                      <div className="md:absolute md:-left-32 md:top-1 text-xs font-semibold text-indigo-400 mb-1 md:mb-0">
-                        {item.date}
-                      </div>
-
-                      <div
-                        onClick={() => setSelectedArchive(item)}
-                        className="bg-slate-900 border border-slate-800 p-5 rounded-xl hover:border-indigo-500/50 transition-all shadow-lg cursor-pointer group-hover:-translate-y-1"
-                      >
-                        <span className="inline-block px-2.5 py-0.5 mb-2 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 rounded-full">
-                          {item.category}
-                        </span>
-                        <h3 className="text-lg font-bold text-slate-100 mb-1 flex items-center justify-between">
+          {loading ? (
+            <div className="text-center py-12 text-slate-500 text-sm">
+              Loading slide data from database...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8 bg-slate-900/20 p-8 rounded-2xl border border-slate-900/60">
+              {/* KOLOM 1: ARCHIVES */}
+              <div>
+                <h3 className="text-xs font-bold tracking-widest text-slate-400 mb-6 uppercase border-b border-slate-800 pb-2">
+                  Archives
+                </h3>
+                <ul className="space-y-3.5">
+                  {archiveMonths.length > 0 ? (
+                    archiveMonths.map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-2.5 group">
+                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors"></span>
+                        {/* TERSEBAR DENGAN BENAR: Menggunakan properti `.title`[cite: 18] */}
+                        <Link
+                          to={`/archive/${encodeURIComponent(item.title)}`}
+                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium"
+                        >
                           {item.title}
-                          <span className="text-xs text-indigo-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity">
-                            📄 View Details &rarr;
-                          </span>
-                        </h3>
-                        <p className="text-sm text-slate-300">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                <p className="text-slate-500 text-sm text-center italic">
-                  No archive data available.
-                </p>
-              )}
+                        </Link>
+                      </li>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs italic">
+                      No archives found.
+                    </p>
+                  )}
+                </ul>
+              </div>
+
+              {/* KOLOM 2: CATEGORIES */}
+              {/* KOLOM 2: CATEGORIES */}
+              <div>
+                <h3 className="text-xs font-bold tracking-widest text-slate-400 mb-6 uppercase border-b border-slate-800 pb-2">
+                  Categories
+                </h3>
+                <ul className="space-y-3.5">
+                  {categories.length > 0 ? (
+                    categories.map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-2.5 group">
+                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors"></span>
+                        {/* Mengubah item.title menjadi bentuk string/teks yang aman */}
+                        <Link
+                          to={`/category/${encodeURIComponent(item.title)}`}
+                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium"
+                        >
+                          {String(item.title).replace(/^\d+$/, (idNum) => {
+                            // Fallback otomatis jika masih berupa angka ID,
+                            // Anda bisa menyesuaikan tampilannya di sini
+                            return `Kategori #${idNum}`;
+                          })}
+                        </Link>
+                      </li>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs italic">
+                      No categories found.
+                    </p>
+                  )}
+                </ul>
+              </div>
+
+              {/* KOLOM 3: CERTIFICATIONS */}
+              <div>
+                <h3 className="text-xs font-bold tracking-widest text-slate-400 mb-6 uppercase border-b border-slate-800 pb-2">
+                  Certifications
+                </h3>
+                <ul className="space-y-3.5">
+                  {certifications.length > 0 ? (
+                    certifications.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2.5 group">
+                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors mt-2 shrink-0"></span>
+                        <a
+                          href={item.url || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium leading-tight inline-flex items-center gap-1"
+                        >
+                          {item.title} <ExternalLink size={12} />
+                        </a>
+                      </li>
+                    ))
+                  ) : (
+                    <p className="text-slate-500 text-xs italic">
+                      No certifications listed.
+                    </p>
+                  )}
+                </ul>
+              </div>
             </div>
-          </div>
+          )}
         </div>
-
-        {/* MODAL POPUP */}
-        {selectedArchive && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl p-6 md:p-8 shadow-2xl relative">
-              <button
-                onClick={() => setSelectedArchive(null)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition"
-              >
-                ✕
-              </button>
-
-              <div className="flex items-center gap-3 mb-3">
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-indigo-500/10 text-indigo-400 rounded-full">
-                  {selectedArchive.category}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {selectedArchive.date}
-                </span>
-              </div>
-
-              <h2 className="text-2xl font-bold text-slate-100 mb-4">
-                {selectedArchive.title}
-              </h2>
-
-              <p className="text-sm text-slate-300 font-medium mb-6 bg-slate-950 p-4 rounded-xl border border-slate-800/60">
-                {selectedArchive.description}
-              </p>
-
-              <div className="space-y-4 text-slate-300 text-sm leading-relaxed mb-8 whitespace-pre-line">
-                {selectedArchive.content ||
-                  "No additional text details available for this archive."}
-              </div>
-
-              {selectedArchive.url && (
-                <div className="pt-4 border-t border-slate-800 flex justify-end">
-                  <a
-                    href={selectedArchive.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl transition inline-flex items-center gap-2 shadow-lg shadow-indigo-600/20"
-                  >
-                    🔗 Open External Link / File &rarr;
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </section>
 
       {/* SLIDE 4: Socials */}
@@ -641,27 +662,18 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SLIDE 5: Contact & Footer dengan Animasi Aurora yang Lebih Hidup */}
+      {/* SLIDE 5: Contact & Footer */}
       <section
         id="contact"
         className="relative py-20 md:min-h-screen px-6 bg-slate-950 flex flex-col justify-between overflow-hidden isolate"
       >
-        {/* Background Animasi Aurora yang Ditingkatkan (Warna Lebih Kaya & Blur Lebih Lembut) */}
         <div className="absolute -inset-[100px] opacity-50 pointer-events-none overflow-hidden z-0">
-          {/* Aurora Kiri Atas (Cyan Terang) */}
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-cyan-500 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-1"></div>
-
-          {/* Aurora Kanan Tengah (Ungu) */}
           <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-violet-600 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-2 [animation-delay:-3s]"></div>
-
-          {/* Aurora Bawah (Hijau Toska) */}
           <div className="absolute -bottom-1/4 left-1/3 w-[800px] h-[600px] bg-emerald-500 rounded-full mix-blend-screen filter blur-[128px] animate-aurora-gentle-3 [animation-delay:-5s]"></div>
-
-          {/* Lapisan Gradien Gelap di atas Aurora agar teks tetap terbaca */}
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]"></div>
         </div>
 
-        {/* Konten Kontak (Dibuat sedikit lebih tebal agar kontras dengan background) */}
         <div className="max-w-xl mx-auto w-full relative z-10 my-auto">
           <h2 className="text-4xl md:text-5xl font-extrabold mb-4 text-center text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-white drop-shadow-lg">
             Get in Touch
@@ -670,7 +682,6 @@ export default function Home() {
             Have questions or a job offer? Send a direct message below.
           </p>
 
-          {/* Card Contact dengan Efek Kaca yang Lebih Tebal */}
           <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 p-8 rounded-3xl shadow-xl shadow-indigo-950/30 ring-1 ring-white/5">
             {submitted && (
               <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-center text-sm font-medium">
@@ -679,7 +690,6 @@ export default function Home() {
             )}
 
             <form onSubmit={handleContactSubmit} className="space-y-5">
-              {/* Input Fields */}
               {[
                 {
                   id: "name",
@@ -715,7 +725,6 @@ export default function Home() {
                 </div>
               ))}
 
-              {/* Textarea */}
               <div>
                 <label
                   htmlFor="message"
@@ -736,7 +745,6 @@ export default function Home() {
                 ></textarea>
               </div>
 
-              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
@@ -758,7 +766,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Keyframes CSS untuk Animasi Aurora yang Halus & Memutar */}
         <style>{`
           @keyframes auroraGentle1 {
             0%, 100% { transform: translateX(0px) translateY(0px) scale(1); }
@@ -776,7 +783,7 @@ export default function Home() {
           .animate-aurora-gentle-2 { animation: auroraGentle2 12s infinite alternate ease-in-out; }
           .animate-aurora-gentle-3 { animation: auroraGentle3 14s infinite alternate ease-in-out; }
         `}</style>
-        {/* Footer Minimalis */}
+
         <footer className="w-full max-w-6xl mx-auto mt-16 pt-8 border-t border-slate-800/60 text-center relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
             &copy; {new Date().getFullYear()} &bull; All Rights Reserved.
@@ -798,9 +805,7 @@ export default function Home() {
         </footer>
       </section>
 
-      {/* Floating Action Buttons Container (Stacked vertically & perfectly aligned on the right) */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-3 items-end">
-        {/* Tombol Panah ke Atas */}
         <button
           onClick={scrollToTop}
           className="bg-indigo-600 hover:bg-indigo-500 text-white w-12 h-12 rounded-full shadow-lg transition-all duration-300 flex items-center justify-center hover:scale-110"
@@ -809,7 +814,6 @@ export default function Home() {
           <ArrowUp size={22} />
         </button>
 
-        {/* Tombol WhatsApp */}
         <a
           href="https://wa.me/+62881024056345?text=Hello,%20I'm%20interested%20in%20your%20portfolio."
           target="_blank"

@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import {
+  User,
+  Image as ImageIcon,
+  Save,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react";
 
 export default function ManageHero() {
   const [hero, setHero] = useState({
@@ -32,6 +40,7 @@ export default function ManageHero() {
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setNotification("");
 
     let imageUrl = hero.image_url;
 
@@ -83,31 +92,41 @@ export default function ManageHero() {
   };
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold mb-2">
-        Kelola Slide 1 (Hero & Profil)
-      </h1>
-      <p className="text-slate-400 text-sm mb-6">
-        Ubah teks utama, tajuk profesional, dan foto profil Anda.
-      </p>
+    <div className="text-slate-100 max-w-4xl mx-auto pb-12">
+      {/* Header Halaman */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-slate-800">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-100 flex items-center gap-2.5">
+            <User className="text-indigo-400" size={26} />
+            Kelola Slide 1 (Hero & Profil)
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Ubah teks utama, tajuk profesional, dan foto profil yang tampil di
+            halaman depan.
+          </p>
+        </div>
+      </div>
 
+      {/* Notifikasi Sukses */}
       {notification && (
-        <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-sm">
-          {notification}
+        <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-sm flex items-center gap-3 shadow-lg shadow-emerald-950/20 animate-fadeIn">
+          <CheckCircle2 size={20} className="shrink-0" />
+          <span>{notification}</span>
         </div>
       )}
 
+      {/* Form Utama */}
       <form
         onSubmit={handleSave}
-        className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-5"
+        className="bg-slate-900/50 border border-slate-800/80 p-6 md:p-8 rounded-2xl shadow-xl space-y-6"
       >
-        {/* Unggah Foto */}
-        <div>
-          <label className="block text-xs font-semibold uppercase text-slate-400 mb-2">
-            Foto Profil
+        {/* Sektor Unggah Foto Profil */}
+        <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
+          <label className="block text-xs font-semibold uppercase text-slate-400 tracking-wider mb-3">
+            Foto Profil Utama
           </label>
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <div className="w-24 h-24 rounded-2xl bg-slate-900 border-2 border-slate-800 flex items-center justify-center overflow-hidden shadow-inner shrink-0 relative group">
               {imageFile ? (
                 <img
                   src={URL.createObjectURL(imageFile)}
@@ -121,61 +140,93 @@ export default function ManageHero() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-xs text-slate-500">No Image</span>
+                <div className="flex flex-col items-center gap-1 text-slate-500">
+                  <ImageIcon size={24} />
+                  <span className="text-[10px]">No Image</span>
+                </div>
               )}
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600/20 file:text-indigo-400 hover:file:bg-indigo-600/30 cursor-pointer"
-            />
+
+            <div className="flex-1 space-y-2 w-full">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="block w-full text-sm text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:tracking-wider file:bg-indigo-600/10 file:text-indigo-400 hover:file:bg-indigo-600/20 file:transition cursor-pointer border border-slate-800 rounded-xl bg-slate-900 p-2"
+              />
+              <p className="text-xs text-slate-500">
+                Format yang didukung: JPG, PNG, atau WebP. Disarankan gambar
+                berbentuk persegi (1:1).
+              </p>
+            </div>
           </div>
         </div>
 
+        {/* Input Teks Sapaan */}
         <div>
-          <label className="block text-xs font-semibold uppercase text-slate-400 mb-2">
+          <label className="block text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">
             Teks Sapaan (Greeting)
           </label>
           <input
             type="text"
             value={hero.greeting}
             onChange={(e) => setHero({ ...hero, greeting: e.target.value })}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm text-slate-100"
+            placeholder="Contoh: Halo, Saya"
+            required
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
           />
         </div>
 
+        {/* Input Judul Utama */}
         <div>
-          <label className="block text-xs font-semibold uppercase text-slate-400 mb-2">
-            Judul Utama (Nama / Peran)
+          <label className="block text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">
+            Judul Utama (Nama / Peran / Profesi)
           </label>
           <input
             type="text"
             value={hero.title}
             onChange={(e) => setHero({ ...hero, title: e.target.value })}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm text-slate-100"
+            placeholder="Contoh: Professional Developer"
+            required
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition"
           />
         </div>
 
+        {/* Input Deskripsi */}
         <div>
-          <label className="block text-xs font-semibold uppercase text-slate-400 mb-2">
-            Deskripsi / Sub-Judul
+          <label className="block text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">
+            Deskripsi / Ringkasan Profil
           </label>
           <textarea
-            rows="3"
+            rows="4"
             value={hero.description}
             onChange={(e) => setHero({ ...hero, description: e.target.value })}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm text-slate-100"
+            placeholder="Tuliskan ringkasan singkat latar belakang keahlian Anda..."
+            required
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition leading-relaxed"
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium text-sm transition disabled:opacity-50"
-        >
-          {loading ? "Menyimpan..." : "Simpan Perubahan"}
-        </button>
+        {/* Tombol Simpan */}
+        <div className="pt-4 border-t border-slate-800/80 flex items-center justify-end">
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl px-6 py-3 text-sm transition shadow-lg shadow-indigo-600/20 disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Menyimpan Perubahan...</span>
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                <span>Simpan Perubahan</span>
+              </>
+            )}
+          </button>
+        </div>
       </form>
     </div>
   );
