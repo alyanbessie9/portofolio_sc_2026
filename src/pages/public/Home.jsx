@@ -516,13 +516,18 @@ export default function Home() {
                   {archiveMonths.length > 0 ? (
                     archiveMonths.map((item, idx) => (
                       <li key={idx} className="flex items-center gap-2.5 group">
-                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors"></span>
-                        {/* TERSEBAR DENGAN BENAR: Menggunakan properti `.title`[cite: 18] */}
+                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors shrink-0"></span>
                         <Link
                           to={`/archive/${encodeURIComponent(item.title)}`}
-                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium"
+                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium truncate block w-full"
+                          title={`${item.date ? item.date + " - " : ""}${item.title}`}
                         >
-                          {item.title}
+                          {item.date && (
+                            <span className="text-teal-400 font-mono text-xs mr-2 font-semibold">
+                              [{item.date}]
+                            </span>
+                          )}
+                          <span className="truncate">{item.title}</span>
                         </Link>
                       </li>
                     ))
@@ -535,29 +540,38 @@ export default function Home() {
               </div>
 
               {/* KOLOM 2: CATEGORIES */}
-              {/* KOLOM 2: CATEGORIES */}
               <div>
                 <h3 className="text-xs font-bold tracking-widest text-slate-400 mb-6 uppercase border-b border-slate-800 pb-2">
                   Categories
                 </h3>
                 <ul className="space-y-3.5">
                   {categories.length > 0 ? (
-                    categories.map((item, idx) => (
-                      <li key={idx} className="flex items-center gap-2.5 group">
-                        <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors"></span>
-                        {/* Mengubah item.title menjadi bentuk string/teks yang aman */}
-                        <Link
-                          to={`/category/${encodeURIComponent(item.title)}`}
-                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium"
+                    categories.map((item, idx) => {
+                      const categoryTitle = String(item.title).replace(
+                        /^\d+$/,
+                        (idNum) => `Kategori #${idNum}`,
+                      );
+                      return (
+                        <li
+                          key={idx}
+                          className="flex items-center gap-2.5 group"
                         >
-                          {String(item.title).replace(/^\d+$/, (idNum) => {
-                            // Fallback otomatis jika masih berupa angka ID,
-                            // Anda bisa menyesuaikan tampilannya di sini
-                            return `Kategori #${idNum}`;
-                          })}
-                        </Link>
-                      </li>
-                    ))
+                          <span className="w-1 h-1 rounded-full bg-slate-700 group-hover:bg-indigo-500 transition-colors shrink-0"></span>
+                          <Link
+                            to={`/category/${encodeURIComponent(item.title)}`}
+                            className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium truncate block w-full"
+                            title={`${item.date ? item.date + " - " : ""}${categoryTitle}`}
+                          >
+                            {item.date && (
+                              <span className="text-teal-400 font-mono text-xs mr-2 font-semibold">
+                                [{item.date}]
+                              </span>
+                            )}
+                            <span className="truncate">{categoryTitle}</span>
+                          </Link>
+                        </li>
+                      );
+                    })
                   ) : (
                     <p className="text-slate-500 text-xs italic">
                       No categories found.
@@ -580,9 +594,18 @@ export default function Home() {
                           href={item.url || "#"}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium leading-tight inline-flex items-center gap-1"
+                          className="text-sm text-slate-300 hover:text-indigo-400 underline underline-offset-4 decoration-slate-800 hover:decoration-indigo-400 transition-all font-medium leading-tight inline-flex items-center gap-1 truncate w-full"
                         >
-                          {item.title} <ExternalLink size={12} />
+                          {item.date && (
+                            <span className="text-teal-400 font-mono text-xs mr-1 shrink-0 font-semibold">
+                              [{item.date}]
+                            </span>
+                          )}
+                          <span className="truncate">{item.title}</span>
+                          <ExternalLink
+                            size={12}
+                            className="shrink-0 ml-auto"
+                          />
                         </a>
                       </li>
                     ))
