@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
+
 import {
   ArrowLeft,
   BookOpen,
@@ -16,18 +17,28 @@ import {
   FileText,
   X,
   Maximize2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 export default function ArchivePage() {
   const { date } = useParams();
+
+  // ============================================================
+  // STATE
+  // ============================================================
 
   const [tocList, setTocList] = useState([]);
   const [activeItem, setActiveItem] = useState(null);
   const [fullContent, setFullContent] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState("");
+
   const [loadingToc, setLoadingToc] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
+
+  const [tocError, setTocError] = useState(null);
+  const [contentError, setContentError] = useState(null);
 
   // Mobile navigation
   const [mobileView, setMobileView] = useState("content");
@@ -42,144 +53,343 @@ export default function ArchivePage() {
   // Image fullscreen
   const [showImagePreview, setShowImagePreview] = useState(false);
 
-  // Reset expanded state when article changes
+  // ============================================================
+  // CACHE
+  //
+  // Menyimpan artikel yang sudah pernah dibuka.
+  // Jika user membuka artikel yang sama lagi,
+  // data langsung muncul tanpa request Supabase ulang.
+  // ============================================================
+
+  const contentCache = useRef(new Map());
+
+  // Menyimpan ID request terakhir.
+  // Digunakan untuk mencegah race condition.
+  const requestIdRef = useRef(0);
+
+  // ============================================================
+  // RESET STATE SAAT ARTIKEL BERUBAH
+  // ============================================================
+
   useEffect(() => {
     setIsExpanded(false);
     setShowImagePreview(false);
-  }, [activeItem]);
+    setShowShareMenu(false);
+  }, [activeItem?.id]);
 
   // ============================================================
-  // UPDATE OPEN GRAPH & SOCIAL MEDIA META TAGS
+  // UPDATE META TAG
   // ============================================================
+
   useEffect(() => {
     if (!fullContent) return;
 
     const title = fullContent.title || "Arsip Dokumentasi";
+
     const description =
       fullContent.description || "Jelajahi dokumentasi arsip dan pengetahuan.";
+
     const imageUrl = fullContent.image_url || "";
+
     const currentUrl = window.location.href;
 
-    // Update document title
     document.title = title;
 
-    // Helper to set or create meta tags for social media crawlers
     const setMetaTag = (propertyKey, contentValue, isProperty = true) => {
       if (!contentValue) return;
+
       const attrName = isProperty ? "property" : "name";
+
       let element = document.querySelector(
         `meta[${attrName}="${propertyKey}"]`,
       );
 
       if (!element) {
         element = document.createElement("meta");
+
         element.setAttribute(attrName, propertyKey);
+
         document.head.appendChild(element);
       }
+
       element.setAttribute("content", contentValue);
     };
 
-    // Open Graph (WhatsApp, Facebook, LinkedIn, etc.)
+    // Open Graph
     setMetaTag("og:title", title, true);
+
     setMetaTag("og:description", description, true);
-    setMetaTag("og:image", imageUrl, true);
+
+    if (imageUrl) {
+      setMetaTag("og:image", imageUrl, true);
+    }
+
     setMetaTag("og:url", currentUrl, true);
+
     setMetaTag("og:type", "article", true);
 
-    // Twitter Cards
-    setMetaTag("twitter:card", "summary_large_image", false);
+    // Twitter
+    setMetaTag(
+      "twitter:card",
+      imageUrl ? "summary_large_image" : "summary",
+      false,
+    );
+
     setMetaTag("twitter:title", title, false);
+
     setMetaTag("twitter:description", description, false);
-    setMetaTag("twitter:image", imageUrl, false);
+
+    if (imageUrl) {
+      setMetaTag("twitter:image", imageUrl, false);
+    }
   }, [fullContent]);
 
   // ============================================================
-  // FETCH ARCHIVE LIST
+  // FETCH TABLE OF CONTENTS
+  //
+  // Hanya mengambil data ringan.
+  // Jangan mengambil content HTML di sini.
   // ============================================================
-  useEffect(() => {
-    const fetchToc = async () => {
-      setLoadingToc(true);
 
+  const fetchToc = useCallback(async () => {
+    setLoadingToc(true);
+    setTocError(null);
+
+    try {
       const { data, error } = await supabase
         .from("archives")
-        .select("id, date, title")
-        .order("id", { ascending: false })
+        .select(
+          `
+            id,
+            date,
+            title,
+            category
+          `,
+        )
+        .order("id", {
+          ascending: false,
+        })
         .limit(50);
 
-      if (data) {
-        setTocList(data);
-
-        if (!date && data.length > 0) {
-          setActiveItem(data[0]);
-        } else if (date) {
-          const decodedDate = decodeURIComponent(date);
-
-          const found = data.find(
-            (item) => item.date === decodedDate || item.title === decodedDate,
-          );
-
-          if (found) {
-            setActiveItem(found);
-          }
-        }
-      }
-
       if (error) {
-        console.error("Error fetching TOC:", error);
+        throw error;
       }
 
-      setLoadingToc(false);
-    };
+      const archives = data || [];
 
-    fetchToc();
+      setTocList(archives);
+
+      // Cari artikel berdasarkan parameter URL
+      if (date) {
+        const decodedDate = decodeURIComponent(date);
+
+        const found = archives.find(
+          (item) => item.date === decodedDate || item.title === decodedDate,
+        );
+
+        if (found) {
+          setActiveItem(found);
+        } else if (archives.length > 0) {
+          setActiveItem(archives[0]);
+        }
+      } else if (archives.length > 0) {
+        setActiveItem(archives[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching archive list:", error);
+
+      setTocError("Gagal memuat daftar dokumentasi.");
+    } finally {
+      setLoadingToc(false);
+    }
   }, [date]);
 
   // ============================================================
-  // FETCH FULL CONTENT
+  // LOAD TABLE OF CONTENTS
   // ============================================================
-  useEffect(() => {
-    const fetchContent = async () => {
-      if (!activeItem) return;
 
-      setLoadingContent(true);
+  useEffect(() => {
+    fetchToc();
+  }, [fetchToc]);
+
+  // ============================================================
+  // FETCH FULL CONTENT
+  //
+  // OPTIMISASI:
+  //
+  // 1. Cek cache terlebih dahulu
+  // 2. Hanya mengambil kolom diperlukan
+  // 3. Race condition protection
+  // 4. Tidak langsung menghapus content lama
+  // ============================================================
+
+  const fetchContent = useCallback(async () => {
+    if (!activeItem?.id) return;
+
+    const archiveId = activeItem.id;
+
+    // --------------------------------------------------------
+    // CEK CACHE
+    // --------------------------------------------------------
+
+    if (contentCache.current.has(archiveId)) {
+      const cachedData = contentCache.current.get(archiveId);
+
+      setFullContent(cachedData);
+
+      setContentError(null);
+      setLoadingContent(false);
+
+      console.log("Archive loaded from cache:", archiveId);
+
+      return;
+    }
+
+    // --------------------------------------------------------
+    // REQUEST ID
+    //
+    // Request lama tidak boleh
+    // menimpa artikel baru.
+    // --------------------------------------------------------
+
+    const currentRequestId = requestIdRef.current + 1;
+
+    requestIdRef.current = currentRequestId;
+
+    setLoadingContent(true);
+    setContentError(null);
+
+    // Performance timer
+    const startTime = performance.now();
+
+    try {
+      // ------------------------------------------------------
+      // QUERY OPTIMIZED
+      //
+      // JANGAN gunakan:
+      // .select("*")
+      // ------------------------------------------------------
 
       const { data, error } = await supabase
         .from("archives")
-        .select("*")
-        .eq("id", activeItem.id)
+        .select(
+          `
+              id,
+              date,
+              title,
+              category,
+              description,
+              content,
+              image_url,
+              url
+            `,
+        )
+        .eq("id", archiveId)
         .single();
 
-      if (data) {
-        setFullContent(data);
+      // ------------------------------------------------------
+      // ABAIKAN RESPONSE LAMA
+      // ------------------------------------------------------
+
+      if (currentRequestId !== requestIdRef.current) {
+        return;
       }
 
       if (error) {
-        console.error("Error fetching archive content:", error);
+        throw error;
       }
 
-      setLoadingContent(false);
-    };
+      if (!data) {
+        throw new Error("Dokumentasi tidak ditemukan.");
+      }
 
+      // ------------------------------------------------------
+      // SIMPAN KE CACHE
+      // ------------------------------------------------------
+
+      contentCache.current.set(archiveId, data);
+
+      // Batasi cache maksimal 30 artikel
+      if (contentCache.current.size > 30) {
+        const oldestKey = contentCache.current.keys().next().value;
+
+        contentCache.current.delete(oldestKey);
+      }
+
+      // ------------------------------------------------------
+      // UPDATE CONTENT
+      // ------------------------------------------------------
+
+      setFullContent(data);
+
+      const endTime = performance.now();
+
+      console.log(
+        `Archive ${archiveId} loaded in ${(endTime - startTime).toFixed(0)} ms`,
+      );
+    } catch (error) {
+      if (currentRequestId !== requestIdRef.current) {
+        return;
+      }
+
+      console.error("Error fetching archive content:", error);
+
+      setContentError(error.message || "Gagal memuat dokumentasi.");
+    } finally {
+      if (currentRequestId === requestIdRef.current) {
+        setLoadingContent(false);
+      }
+    }
+  }, [activeItem?.id]);
+
+  // ============================================================
+  // LOAD CONTENT
+  // ============================================================
+
+  useEffect(() => {
     fetchContent();
-  }, [activeItem]);
+  }, [fetchContent]);
 
   // ============================================================
   // SEARCH
   // ============================================================
-  const filteredToc = tocList.filter(
-    (item) =>
-      (item.title &&
-        item.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (item.date &&
-        item.date.toLowerCase().includes(searchQuery.toLowerCase())),
-  );
+
+  const filteredToc = tocList.filter((item) => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) return true;
+
+    return (
+      item.title?.toLowerCase().includes(query) ||
+      item.date?.toLowerCase().includes(query) ||
+      item.category?.toLowerCase().includes(query)
+    );
+  });
 
   // ============================================================
-  // SHARE HANDLER
+  // SELECT ARCHIVE
   // ============================================================
+
+  const handleSelectArchive = (item) => {
+    // Jangan request ulang jika artikel sama
+    if (activeItem?.id === item.id) {
+      setMobileView("content");
+      return;
+    }
+
+    setActiveItem(item);
+    setMobileView("content");
+  };
+
+  // ============================================================
+  // SHARE
+  // ============================================================
+
   const handleShare = async (platform) => {
     const currentUrl = window.location.href;
+
     const title = fullContent?.title || "Arsip Dokumentasi";
+
     const text = fullContent?.description || title;
 
     setShowShareMenu(false);
@@ -188,12 +398,12 @@ export default function ArchivePage() {
       if (navigator.share) {
         try {
           await navigator.share({
-            title: title,
-            text: text,
+            title,
+            text,
             url: currentUrl,
           });
-        } catch (err) {
-          console.log("Error sharing:", err);
+        } catch (error) {
+          console.log("Share cancelled:", error);
         }
       } else {
         handleShare("copy");
@@ -208,46 +418,49 @@ export default function ArchivePage() {
           `*${title}*\n\n${text}\n\n${currentUrl}`,
         )}`,
         "_blank",
+        "noopener,noreferrer",
       );
-    } else if (platform === "facebook") {
+    }
+
+    if (platform === "facebook") {
       window.open(
         `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
           currentUrl,
         )}`,
         "_blank",
+        "noopener,noreferrer",
       );
-    } else if (platform === "linkedin") {
+    }
+
+    if (platform === "linkedin") {
       window.open(
         `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
           currentUrl,
         )}`,
         "_blank",
+        "noopener,noreferrer",
       );
-    } else if (platform === "copy") {
+    }
+
+    if (platform === "copy") {
       try {
         await navigator.clipboard.writeText(currentUrl);
+
         setCopied(true);
 
         setTimeout(() => {
           setCopied(false);
         }, 2000);
-      } catch (err) {
-        console.error("Failed to copy URL:", err);
+      } catch (error) {
+        console.error("Failed to copy URL:", error);
       }
     }
   };
 
   // ============================================================
-  // SELECT ARCHIVE
-  // ============================================================
-  const handleSelectArchive = (item) => {
-    setActiveItem(item);
-    setMobileView("content");
-  };
-
-  // ============================================================
   // FORMAT DATE
   // ============================================================
+
   const formatDate = (value) => {
     if (!value) return "";
 
@@ -264,14 +477,55 @@ export default function ArchivePage() {
     });
   };
 
+  // ============================================================
+  // SKELETON LOADING
+  // ============================================================
+
+  const ContentSkeleton = () => (
+    <div className="animate-pulse">
+      <div className="h-3 w-32 rounded bg-slate-200" />
+
+      <div className="mt-5 h-10 w-3/4 rounded-lg bg-slate-200" />
+
+      <div className="mt-3 h-10 w-1/2 rounded-lg bg-slate-200" />
+
+      <div className="mt-6 flex gap-2">
+        <div className="h-9 w-24 rounded-lg bg-slate-200" />
+
+        <div className="h-9 w-28 rounded-lg bg-slate-200" />
+      </div>
+
+      <div className="mt-10 h-[280px] rounded-2xl bg-slate-200" />
+
+      <div className="mt-10 space-y-3">
+        <div className="h-4 w-full rounded bg-slate-200" />
+
+        <div className="h-4 w-full rounded bg-slate-200" />
+
+        <div className="h-4 w-11/12 rounded bg-slate-200" />
+
+        <div className="h-4 w-4/5 rounded bg-slate-200" />
+      </div>
+    </div>
+  );
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 flex flex-col selection:bg-indigo-500/30 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
       {/* ======================================================
           GLOBAL STYLE
       ====================================================== */}
+
       <style>{`
         html {
           scroll-behavior: smooth;
+        }
+
+        body {
+          background: #f8fafc;
         }
 
         .archive-scrollbar::-webkit-scrollbar {
@@ -283,19 +537,19 @@ export default function ArchivePage() {
         }
 
         .archive-scrollbar::-webkit-scrollbar-thumb {
-          background: #334155;
+          background: #cbd5e1;
           border-radius: 999px;
         }
 
         .archive-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #475569;
+          background: #94a3b8;
         }
 
         .archive-html-content {
           overflow-wrap: break-word !important;
           word-wrap: break-word !important;
           word-break: break-word !important;
-          color: #cbd5e1;
+          color: #475569;
         }
 
         .archive-html-content * {
@@ -307,7 +561,7 @@ export default function ArchivePage() {
         .archive-html-content h2,
         .archive-html-content h3,
         .archive-html-content h4 {
-          color: #f8fafc !important;
+          color: #0f172a !important;
           font-weight: 800 !important;
           line-height: 1.35 !important;
           margin-top: 2em !important;
@@ -328,7 +582,7 @@ export default function ArchivePage() {
         }
 
         .archive-html-content p {
-          color: #cbd5e1 !important;
+          color: #475569 !important;
           margin-bottom: 1.1em !important;
           line-height: 1.85 !important;
           white-space: pre-wrap !important;
@@ -339,14 +593,14 @@ export default function ArchivePage() {
           list-style-type: disc !important;
           padding-left: 1.6em !important;
           margin-bottom: 1.2em !important;
-          color: #cbd5e1 !important;
+          color: #475569 !important;
         }
 
         .archive-html-content ol {
           list-style-type: decimal !important;
           padding-left: 1.6em !important;
           margin-bottom: 1.2em !important;
-          color: #cbd5e1 !important;
+          color: #475569 !important;
         }
 
         .archive-html-content li {
@@ -358,34 +612,31 @@ export default function ArchivePage() {
           border-left: 3px solid #6366f1 !important;
           padding: 1rem 1.2rem !important;
           margin: 1.5rem 0 !important;
-          color: #94a3b8 !important;
+          color: #64748b !important;
           font-style: italic !important;
-          background: rgba(99, 102, 241, 0.06);
+          background: rgba(99, 102, 241, 0.05);
           border-radius: 0 0.75rem 0.75rem 0;
         }
 
         .archive-html-content pre,
         .archive-html-content .ql-syntax {
-          background-color: #020617 !important;
-          color: #a5b4fc !important;
+          background-color: #f1f5f9 !important;
+          color: #4f46e5 !important;
           padding: 1.15rem !important;
           border-radius: 0.85rem !important;
-          border: 1px solid #1e293b !important;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+          border: 1px solid #e2e8f0 !important;
           overflow-x: auto !important;
           margin: 1.5rem 0 !important;
           white-space: pre-wrap !important;
           word-break: break-all !important;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
         }
 
         .archive-html-content code {
-          background: rgba(99, 102, 241, 0.1);
-          color: #c4b5fd;
+          background: rgba(99, 102, 241, 0.08);
+          color: #4f46e5;
           border: 1px solid rgba(99, 102, 241, 0.15);
           border-radius: 0.35rem;
           padding: 0.1rem 0.35rem;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
           font-size: 0.9em;
         }
 
@@ -397,15 +648,15 @@ export default function ArchivePage() {
         }
 
         .archive-html-content a {
-          color: #818cf8 !important;
+          color: #4f46e5 !important;
           text-decoration: underline !important;
-          text-decoration-color: rgba(129, 140, 248, 0.4) !important;
+          text-decoration-color: rgba(79, 70, 229, 0.3) !important;
           text-underline-offset: 3px;
           word-break: break-all !important;
         }
 
         .archive-html-content a:hover {
-          color: #a5b4fc !important;
+          color: #3730a3 !important;
         }
 
         .archive-html-content img {
@@ -425,13 +676,13 @@ export default function ArchivePage() {
 
         .archive-html-content th,
         .archive-html-content td {
-          border: 1px solid #1e293b !important;
+          border: 1px solid #e2e8f0 !important;
           padding: 0.75rem !important;
         }
 
         .archive-html-content th {
-          background: #0f172a !important;
-          color: #f8fafc !important;
+          background: #f1f5f9 !important;
+          color: #0f172a !important;
         }
 
         .content-collapsed {
@@ -449,16 +700,24 @@ export default function ArchivePage() {
           height: 180px;
           background: linear-gradient(
             to bottom,
-            rgba(2, 6, 23, 0),
-            rgba(2, 6, 23, 1)
+            rgba(248, 250, 252, 0),
+            rgba(248, 250, 252, 1)
           );
           pointer-events: none;
         }
 
         .archive-grid-bg {
           background-image:
-            linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+            linear-gradient(
+              rgba(100, 116, 139, 0.08) 1px,
+              transparent 1px
+            ),
+            linear-gradient(
+              90deg,
+              rgba(100, 116, 139, 0.08) 1px,
+              transparent 1px
+            );
+
           background-size: 40px 40px;
         }
 
@@ -466,58 +725,60 @@ export default function ArchivePage() {
           background:
             radial-gradient(
               circle at 70% 0%,
-              rgba(99, 102, 241, 0.08),
+              rgba(99, 102, 241, 0.06),
               transparent 32%
             );
         }
       `}</style>
 
       {/* ======================================================
-          TOP NAVIGATION
+          HEADER
       ====================================================== */}
-      <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-[#020617]/90 backdrop-blur-xl">
+
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-[68px] flex items-center justify-between gap-4">
-            {/* Left */}
+            {/* LEFT */}
+
             <div className="flex items-center gap-3 min-w-0">
               <Link
                 to="/"
-                className="group inline-flex items-center gap-2.5 text-sm font-medium text-slate-400 hover:text-white transition"
+                className="group inline-flex items-center gap-2.5 text-sm font-medium text-slate-500 hover:text-slate-900 transition"
               >
-                <span className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/70 flex items-center justify-center group-hover:border-indigo-500/40 group-hover:bg-indigo-500/10 transition">
+                <span className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center group-hover:border-indigo-300 group-hover:bg-indigo-50 transition">
                   <ArrowLeft size={15} />
                 </span>
 
                 <span className="hidden sm:inline">Back to Dashboard</span>
               </Link>
 
-              <div className="hidden sm:block h-5 w-px bg-slate-800" />
+              <div className="hidden sm:block h-5 w-px bg-slate-200" />
 
               <div className="hidden sm:flex items-center gap-2 min-w-0">
-                <BookOpen size={16} className="text-indigo-400 shrink-0" />
+                <BookOpen size={16} className="text-indigo-500 shrink-0" />
 
-                <span className="text-sm font-semibold text-slate-200 truncate">
+                <span className="text-sm font-semibold text-slate-700 truncate">
                   Archive Documentation
                 </span>
               </div>
             </div>
 
-            {/* Right */}
-            <div className="flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-                <FileText size={14} className="text-slate-500" />
+            {/* RIGHT */}
 
-                <span className="text-xs text-slate-400">
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <FileText size={14} className="text-slate-400" />
+
+                <span className="text-xs text-slate-500">
                   {tocList.length} documents
                 </span>
               </div>
 
-              {/* Mobile toggle */}
               <button
                 onClick={() =>
                   setMobileView(mobileView === "toc" ? "content" : "toc")
                 }
-                className="md:hidden inline-flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/15 transition"
+                className="md:hidden inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition"
               >
                 <Menu size={15} />
 
@@ -531,54 +792,58 @@ export default function ArchivePage() {
       {/* ======================================================
           MAIN
       ====================================================== */}
+
       <main className="flex-1 archive-grid-bg archive-glow">
         <div className="max-w-[1600px] mx-auto w-full grid grid-cols-1 md:grid-cols-12 min-h-[calc(100vh-68px)]">
-          {/* =================================================*
+          {/* ==================================================
               SIDEBAR
           ================================================== */}
+
           <aside
             className={`
               md:col-span-4
               lg:col-span-3
-              border-r border-slate-800/70
-              bg-[#020617]/80
+              border-r
+              border-slate-200
+              bg-white/90
               ${mobileView === "toc" ? "block" : "hidden md:block"}
             `}
           >
             <div className="sticky top-[68px] h-[calc(100vh-68px)] flex flex-col">
-              {/* Sidebar Header */}
-              <div className="p-5 sm:p-6 border-b border-slate-800/70">
+              {/* SIDEBAR HEADER */}
+
+              <div className="p-5 sm:p-6 border-b border-slate-200">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/50" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-500" />
 
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">
                         Knowledge Base
                       </span>
                     </div>
 
-                    <h2 className="text-lg font-bold text-white tracking-tight">
+                    <h2 className="text-lg font-bold text-slate-900">
                       Archive
                     </h2>
 
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      Browse your documentation history and select an entry to
-                      read.
+                      Browse your documentation history.
                     </p>
                   </div>
 
-                  <div className="hidden md:flex w-9 h-9 rounded-xl border border-slate-800 bg-slate-900/60 items-center justify-center">
-                    <BookOpen size={16} className="text-slate-500" />
+                  <div className="hidden md:flex w-9 h-9 rounded-xl border border-slate-200 bg-white items-center justify-center">
+                    <BookOpen size={16} className="text-slate-400" />
                   </div>
                 </div>
 
-                {/* Search */}
+                {/* SEARCH */}
+
                 <div className="mt-5">
                   <div className="relative group">
                     <Search
                       size={16}
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition"
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
                     <input
@@ -586,29 +851,13 @@ export default function ArchivePage() {
                       placeholder="Search documentation..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="
-                        w-full
-                        bg-slate-900/70
-                        border border-slate-800
-                        rounded-xl
-                        pl-10
-                        pr-10
-                        py-3
-                        text-xs
-                        text-slate-100
-                        placeholder:text-slate-600
-                        outline-none
-                        transition
-                        focus:border-indigo-500/50
-                        focus:ring-4
-                        focus:ring-indigo-500/5
-                      "
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-10 py-3 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10"
                     />
 
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
                       >
                         <X size={14} />
                       </button>
@@ -616,37 +865,52 @@ export default function ArchivePage() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[10px] text-slate-600">
-                      Search by title or date
+                    <span className="text-[10px] text-slate-400">
+                      Search title, date or category
                     </span>
 
-                    <span className="text-[10px] font-mono text-slate-600">
+                    <span className="text-[10px] font-mono text-slate-400">
                       {filteredToc.length} result
-                      {filteredToc.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Archive List */}
+              {/* ARCHIVE LIST */}
+
               <div className="flex-1 overflow-y-auto archive-scrollbar p-4 sm:p-5">
                 {loadingToc ? (
-                  <div className="h-full min-h-[300px] flex flex-col items-center justify-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                      <Loader2
-                        className="animate-spin text-indigo-400"
-                        size={19}
-                      />
-                    </div>
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((item) => (
+                      <div
+                        key={item}
+                        className="animate-pulse rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="h-3 w-20 bg-slate-200 rounded" />
 
-                    <span className="text-xs text-slate-500">
-                      Loading archives...
-                    </span>
+                        <div className="mt-3 h-4 w-full bg-slate-200 rounded" />
+
+                        <div className="mt-2 h-3 w-2/3 bg-slate-200 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : tocError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+                    <AlertCircle className="mx-auto text-red-500" size={20} />
+
+                    <p className="mt-3 text-xs text-red-600">{tocError}</p>
+
+                    <button
+                      onClick={fetchToc}
+                      className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-red-600"
+                    >
+                      <RefreshCw size={13} />
+                      Coba Lagi
+                    </button>
                   </div>
                 ) : filteredToc.length > 0 ? (
                   <div className="relative">
-                    {/* Timeline */}
-                    <div className="absolute left-[17px] top-4 bottom-4 w-px bg-slate-800" />
+                    <div className="absolute left-[17px] top-4 bottom-4 w-px bg-slate-200" />
 
                     <div className="space-y-2">
                       {filteredToc.map((item, index) => {
@@ -656,65 +920,53 @@ export default function ArchivePage() {
                           <button
                             key={item.id}
                             onClick={() => handleSelectArchive(item)}
-                            className={`
-                              relative
-                              w-full
-                              text-left
-                              pl-10
-                              pr-2
-                              py-2
-                              group
-                              cursor-pointer
-                            `}
+                            className="relative w-full text-left pl-10 pr-2 py-2 group"
                           >
-                            {/* Timeline Dot */}
                             <span
                               className={`
-                                absolute
-                                left-[12px]
-                                top-[18px]
-                                w-[11px]
-                                h-[11px]
-                                rounded-full
-                                border-2
-                                z-10
-                                transition
-                                ${
-                                  isActive
-                                    ? "bg-indigo-500 border-indigo-300 shadow-lg shadow-indigo-500/40"
-                                    : "bg-slate-950 border-slate-700 group-hover:border-indigo-500/50"
-                                }
-                              `}
+                                  absolute
+                                  left-[12px]
+                                  top-[18px]
+                                  w-[11px]
+                                  h-[11px]
+                                  rounded-full
+                                  border-2
+                                  z-10
+                                  ${
+                                    isActive
+                                      ? "bg-indigo-500 border-indigo-300"
+                                      : "bg-white border-slate-300"
+                                  }
+                                `}
                             />
 
-                            {/* Card */}
                             <div
                               className={`
-                                rounded-xl
-                                border
-                                px-3.5
-                                py-3
-                                transition-all
-                                ${
-                                  isActive
-                                    ? "bg-indigo-500/[0.07] border-indigo-500/30 shadow-lg shadow-indigo-950/20"
-                                    : "bg-slate-900/30 border-transparent hover:bg-slate-900/70 hover:border-slate-800"
-                                }
-                              `}
+                                  rounded-xl
+                                  border
+                                  px-3.5
+                                  py-3
+                                  transition-all
+                                  ${
+                                    isActive
+                                      ? "bg-indigo-50 border-indigo-200 shadow-sm"
+                                      : "bg-white border-transparent hover:bg-slate-50 hover:border-slate-200"
+                                  }
+                                `}
                             >
                               <div className="flex items-center justify-between gap-2 mb-1.5">
                                 <span
                                   className={`
-                                    text-[10px]
-                                    font-mono
-                                    uppercase
-                                    tracking-wider
-                                    ${
-                                      isActive
-                                        ? "text-indigo-400"
-                                        : "text-slate-500"
-                                    }
-                                  `}
+                                      text-[10px]
+                                      font-mono
+                                      uppercase
+                                      tracking-wider
+                                      ${
+                                        isActive
+                                          ? "text-indigo-500"
+                                          : "text-slate-400"
+                                      }
+                                    `}
                                 >
                                   {formatDate(item.date)}
                                 </span>
@@ -722,28 +974,30 @@ export default function ArchivePage() {
                                 {isActive && (
                                   <ChevronRight
                                     size={13}
-                                    className="text-indigo-400"
+                                    className="text-indigo-500"
                                   />
                                 )}
                               </div>
 
                               <div
                                 className={`
-                                  text-xs sm:text-sm
-                                  leading-snug
-                                  font-semibold
-                                  ${
-                                    isActive
-                                      ? "text-white"
-                                      : "text-slate-400 group-hover:text-slate-200"
-                                  }
-                                `}
+                                    text-xs
+                                    sm:text-sm
+                                    leading-snug
+                                    font-semibold
+                                    ${
+                                      isActive
+                                        ? "text-slate-900"
+                                        : "text-slate-600 group-hover:text-slate-900"
+                                    }
+                                  `}
                               >
                                 {item.title}
                               </div>
 
-                              <div className="mt-2 text-[9px] font-mono text-slate-600">
-                                DOC-{String(index + 1).padStart(3, "0")}
+                              <div className="mt-2 text-[9px] font-mono text-slate-400">
+                                DOC-
+                                {String(index + 1).padStart(3, "0")}
                               </div>
                             </div>
                           </button>
@@ -752,17 +1006,11 @@ export default function ArchivePage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 p-8 text-center">
-                    <div className="w-10 h-10 mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
-                      <Search size={17} className="text-slate-600" />
-                    </div>
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+                    <Search size={17} className="mx-auto text-slate-400" />
 
-                    <p className="text-xs font-medium text-slate-400">
+                    <p className="mt-3 text-xs font-medium text-slate-600">
                       No documentation found
-                    </p>
-
-                    <p className="mt-1 text-[10px] text-slate-600">
-                      Try another title or date.
                     </p>
                   </div>
                 )}
@@ -770,9 +1018,10 @@ export default function ArchivePage() {
             </div>
           </aside>
 
-          {/* =================================================*
-              CONTENT AREA
+          {/* ==================================================
+              CONTENT
           ================================================== */}
+
           <section
             className={`
               md:col-span-8
@@ -782,398 +1031,324 @@ export default function ArchivePage() {
             `}
           >
             <div className="min-h-[calc(100vh-68px)]">
-              {loadingContent ? (
-                <div className="p-5 sm:p-8 lg:p-12">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="min-h-[500px] rounded-3xl border border-slate-800/70 bg-slate-900/20 flex flex-col items-center justify-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                        <Loader2
-                          className="animate-spin text-indigo-400"
-                          size={22}
-                        />
-                      </div>
+              <article className="px-5 sm:px-8 lg:px-12 py-8 lg:py-12">
+                <div className="max-w-4xl mx-auto">
+                  {/* INITIAL LOADING */}
 
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-slate-300">
-                          Loading documentation
-                        </p>
+                  {!fullContent && loadingContent && <ContentSkeleton />}
 
-                        <p className="mt-1 text-xs text-slate-600">
-                          Please wait...
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : fullContent ? (
-                <article className="px-5 sm:px-8 lg:px-12 py-8 lg:py-12">
-                  <div className="max-w-4xl mx-auto">
-                    {/* ==========================================
-                        ARTICLE HEADER
-                    ========================================== */}
-                    <header>
-                      {/* Breadcrumb */}
-                      <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-600 mb-5">
-                        <span>Documentation</span>
+                  {/* ERROR */}
 
-                        <ChevronRight size={12} />
+                  {contentError && !loadingContent && (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+                      <AlertCircle className="mx-auto text-red-500" size={26} />
 
-                        <span className="text-slate-500">Archive</span>
-
-                        <ChevronRight size={12} />
-
-                        <span className="text-indigo-400 truncate">
-                          {fullContent.category || "Document"}
-                        </span>
-                      </div>
-
-                      {/* Meta */}
-                      <div className="flex flex-wrap items-center gap-2 mb-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase tracking-wider">
-                          <CalendarDays size={12} />
-
-                          {formatDate(fullContent.date)}
-                        </span>
-
-                        {fullContent.category && (
-                          <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                            {fullContent.category}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Title */}
-                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-[-0.035em] leading-[1.1] text-white break-words">
-                        {fullContent.title}
-                      </h1>
-
-                      {/* Intro line */}
-                      <div className="mt-5 flex items-center gap-3">
-                        <div className="h-px w-10 bg-indigo-500" />
-
-                        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-600">
-                          Technical Documentation
-                        </span>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="mt-7 flex flex-wrap items-center gap-2">
-                        {/* Share */}
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowShareMenu(!showShareMenu)}
-                            className="
-                              inline-flex
-                              items-center
-                              gap-2
-                              px-3.5
-                              py-2
-                              rounded-lg
-                              bg-slate-900/80
-                              hover:bg-slate-800
-                              border
-                              border-slate-800
-                              hover:border-slate-700
-                              text-slate-300
-                              text-xs
-                              font-semibold
-                              transition
-                            "
-                          >
-                            <Share2 size={14} />
-                            Share
-                          </button>
-
-                          {showShareMenu && (
-                            <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-slate-800 bg-[#0b1120] shadow-2xl shadow-black/40 overflow-hidden z-50">
-                              <div className="px-4 py-3 border-b border-slate-800">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">
-                                  Share document
-                                </p>
-                              </div>
-
-                              <button
-                                onClick={() => handleShare("native")}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-800/70 flex items-center gap-3 text-xs text-slate-300 transition"
-                              >
-                                <Share2 size={14} className="text-indigo-400" />
-                                Share Device / Apps
-                              </button>
-
-                              <button
-                                onClick={() => handleShare("whatsapp")}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-800/70 flex items-center gap-3 text-xs text-slate-300 transition"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                                WhatsApp
-                              </button>
-
-                              <button
-                                onClick={() => handleShare("facebook")}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-800/70 flex items-center gap-3 text-xs text-slate-300 transition"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-blue-500" />
-                                Facebook
-                              </button>
-
-                              <button
-                                onClick={() => handleShare("linkedin")}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-800/70 flex items-center gap-3 text-xs text-slate-300 transition"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-sky-500" />
-                                LinkedIn
-                              </button>
-
-                              <div className="border-t border-slate-800" />
-
-                              <button
-                                onClick={() => handleShare("copy")}
-                                className="w-full text-left px-4 py-2.5 hover:bg-slate-800/70 flex items-center gap-3 text-xs text-indigo-300 font-medium transition"
-                              >
-                                {copied ? (
-                                  <>
-                                    <Check
-                                      size={14}
-                                      className="text-emerald-400"
-                                    />
-                                    Tautan Disalin
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy size={14} />
-                                    Salin Tautan
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* External source */}
-                        {fullContent.url && (
-                          <a
-                            href={fullContent.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="
-                              inline-flex
-                              items-center
-                              gap-2
-                              px-3.5
-                              py-2
-                              rounded-lg
-                              bg-indigo-500/10
-                              hover:bg-indigo-500/15
-                              border
-                              border-indigo-500/20
-                              hover:border-indigo-500/40
-                              text-indigo-300
-                              text-xs
-                              font-semibold
-                              transition
-                            "
-                          >
-                            <ExternalLink size={14} />
-                            Source
-                          </a>
-                        )}
-                      </div>
-                    </header>
-
-                    {/* ==========================================
-                        COVER IMAGE
-                    ========================================== */}
-                    {fullContent.image_url && (
-                      <div className="mt-9">
-                        <div className="group relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-b from-slate-900/80 to-slate-950/90 shadow-2xl shadow-indigo-950/30">
-                          {/* Ambient Glow */}
-                          <div className="absolute -top-24 -right-24 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-
-                          <div className="absolute left-4 top-4 z-10">
-                            <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/65 backdrop-blur-md px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-indigo-300 shadow-lg">
-                              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                              Cover Preview
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => setShowImagePreview(true)}
-                            className="absolute right-4 top-4 z-10 w-9 h-9 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-slate-200 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-black/80 transition shadow-lg"
-                            title="View Fullscreen"
-                          >
-                            <Maximize2 size={16} />
-                          </button>
-
-                          <div className="p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-                            <img
-                              src={fullContent.image_url}
-                              alt={fullContent.title}
-                              className="w-full max-h-[520px] object-cover rounded-xl shadow-xl border border-slate-800/60 group-hover:scale-[1.01] transition duration-500"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ==========================================
-                        OVERVIEW
-                    ========================================== */}
-                    {fullContent.description && (
-                      <section className="mt-9">
-                        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/35 overflow-hidden shadow-lg">
-                          <div className="px-5 sm:px-6 py-4 border-b border-slate-800/70 flex items-center gap-3 bg-slate-900/60">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                              <FileText size={15} className="text-indigo-400" />
-                            </div>
-
-                            <div>
-                              <p className="text-xs font-bold text-slate-200">
-                                Overview
-                              </p>
-
-                              <p className="text-[10px] text-slate-500">
-                                Document summary &amp; social snippet
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="px-5 sm:px-6 py-5">
-                            <p className="text-sm sm:text-[15px] text-slate-300 leading-7 break-words">
-                              {fullContent.description}
-                            </p>
-                          </div>
-                        </div>
-                      </section>
-                    )}
-
-                    {/* ==========================================
-                        CONTENT
-                    ========================================== */}
-                    {fullContent.content && (
-                      <section className="mt-10">
-                        <div className="flex items-center gap-3 mb-5">
-                          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-400">
-                            Documentation
-                          </span>
-
-                          <div className="h-px flex-1 bg-slate-800" />
-                        </div>
-
-                        <div className="relative">
-                          <div
-                            className={`
-                              archive-html-content
-                              text-sm
-                              sm:text-[15px]
-                              leading-7
-                              pt-1
-                              ${!isExpanded ? "content-collapsed" : ""}
-                            `}
-                            dangerouslySetInnerHTML={{
-                              __html: fullContent.content,
-                            }}
-                          />
-
-                          {!isExpanded && (
-                            <div className="relative z-10 -mt-2 pt-8 flex justify-center">
-                              <button
-                                onClick={() => setIsExpanded(true)}
-                                className="
-                                  group
-                                  inline-flex
-                                  items-center
-                                  gap-2.5
-                                  px-5
-                                  py-2.5
-                                  rounded-xl
-                                  bg-indigo-600
-                                  hover:bg-indigo-500
-                                  text-white
-                                  text-xs
-                                  font-bold
-                                  shadow-xl
-                                  shadow-indigo-950/30
-                                  transition
-                                "
-                              >
-                                Baca Selengkapnya
-                                <ChevronRight
-                                  size={14}
-                                  className="group-hover:translate-x-0.5 transition"
-                                />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* ==========================================
-                        FOOTER ARTICLE
-                    ========================================== */}
-                    <footer className="mt-14 pt-6 border-t border-slate-800/70">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-2 text-[10px] font-mono text-slate-600">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          DOCUMENT LOADED
-                          <span className="text-slate-800">/</span>
-                          ARCHIVE
-                        </div>
-
-                        <span className="text-[10px] text-slate-700">
-                          Documentation Archive
-                        </span>
-                      </div>
-                    </footer>
-                  </div>
-                </article>
-              ) : (
-                /* =================================================*
-                   EMPTY STATE
-                ================================================== */
-                <div className="p-5 sm:p-8 lg:p-12">
-                  <div className="max-w-4xl mx-auto min-h-[600px] rounded-3xl border border-slate-800/70 bg-slate-900/20 flex items-center justify-center">
-                    <div className="text-center max-w-sm px-6">
-                      <div className="mx-auto w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                        <BookOpen size={22} className="text-indigo-400" />
-                      </div>
-
-                      <h2 className="mt-5 text-lg font-bold text-white">
-                        Select a document
+                      <h2 className="mt-4 font-bold text-red-700">
+                        Gagal memuat konten
                       </h2>
 
-                      <p className="mt-2 text-xs sm:text-sm text-slate-500 leading-relaxed">
-                        Select an archive entry from the sidebar to view its
-                        documentation and details.
+                      <p className="mt-2 text-sm text-red-600">
+                        {contentError}
                       </p>
 
                       <button
-                        onClick={() => setMobileView("toc")}
-                        className="md:hidden mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white transition"
+                        onClick={() => fetchContent()}
+                        className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold"
                       >
-                        <Menu size={14} />
-                        Open Archive
+                        <RefreshCw size={14} />
+                        Coba Lagi
                       </button>
                     </div>
-                  </div>
+                  )}
+
+                  {/* CONTENT */}
+
+                  {fullContent && (
+                    <div
+                      className={`
+                        transition-opacity
+                        duration-200
+                        ${loadingContent ? "opacity-60" : "opacity-100"}
+                      `}
+                    >
+                      {/* HEADER */}
+
+                      <header>
+                        <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-400 mb-5">
+                          <span>Documentation</span>
+
+                          <ChevronRight size={12} />
+
+                          <span>Archive</span>
+
+                          <ChevronRight size={12} />
+
+                          <span className="text-indigo-500 truncate">
+                            {fullContent.category || "Document"}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-wider">
+                            <CalendarDays size={12} />
+
+                            {formatDate(fullContent.date)}
+                          </span>
+
+                          {fullContent.category && (
+                            <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-bold uppercase">
+                              {fullContent.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-[-0.035em] leading-[1.1] text-slate-900 break-words">
+                          {fullContent.title}
+                        </h1>
+
+                        <div className="mt-5 flex items-center gap-3">
+                          <div className="h-px w-10 bg-indigo-500" />
+
+                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400">
+                            Technical Documentation
+                          </span>
+                        </div>
+
+                        {/* ACTION */}
+
+                        <div className="mt-7 flex flex-wrap items-center gap-2">
+                          <div className="relative">
+                            <button
+                              onClick={() => setShowShareMenu(!showShareMenu)}
+                              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold transition shadow-sm"
+                            >
+                              <Share2 size={14} />
+                              Share
+                            </button>
+
+                            {showShareMenu && (
+                              <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 overflow-hidden z-50">
+                                <button
+                                  onClick={() => handleShare("native")}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-xs text-slate-600"
+                                >
+                                  <Share2 size={14} />
+                                  Share Device / Apps
+                                </button>
+
+                                <button
+                                  onClick={() => handleShare("whatsapp")}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-xs text-slate-600"
+                                >
+                                  WhatsApp
+                                </button>
+
+                                <button
+                                  onClick={() => handleShare("facebook")}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-xs text-slate-600"
+                                >
+                                  Facebook
+                                </button>
+
+                                <button
+                                  onClick={() => handleShare("linkedin")}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-xs text-slate-600"
+                                >
+                                  LinkedIn
+                                </button>
+
+                                <div className="border-t border-slate-200" />
+
+                                <button
+                                  onClick={() => handleShare("copy")}
+                                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 text-xs text-indigo-600 font-medium"
+                                >
+                                  {copied ? (
+                                    <>
+                                      <Check size={14} />
+                                      Tautan Disalin
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={14} />
+                                      Salin Tautan
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {fullContent.url && (
+                            <a
+                              href={fullContent.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 text-indigo-600 text-xs font-semibold transition"
+                            >
+                              <ExternalLink size={14} />
+                              Source
+                            </a>
+                          )}
+                        </div>
+                      </header>
+
+                      {/* COVER IMAGE */}
+
+                      {fullContent.image_url && (
+                        <div className="mt-9">
+                          <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5">
+                            <button
+                              onClick={() => setShowImagePreview(true)}
+                              className="absolute right-4 top-4 z-10 w-9 h-9 rounded-xl bg-white/90 border border-slate-200 flex items-center justify-center text-slate-500 opacity-0 group-hover:opacity-100 hover:text-slate-900 transition shadow-sm"
+                            >
+                              <Maximize2 size={16} />
+                            </button>
+
+                            <div className="p-4 sm:p-6 lg:p-8">
+                              <img
+                                src={fullContent.image_url}
+                                alt={fullContent.title}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full max-h-[520px] object-cover rounded-xl shadow-lg border border-slate-200"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* DESCRIPTION */}
+
+                      {fullContent.description && (
+                        <section className="mt-9">
+                          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                            <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center gap-3 bg-slate-50">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                <FileText
+                                  size={15}
+                                  className="text-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-bold text-slate-700">
+                                  Overview
+                                </p>
+
+                                <p className="text-[10px] text-slate-400">
+                                  Document summary
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="px-5 sm:px-6 py-5">
+                              <p className="text-sm sm:text-[15px] text-slate-600 leading-7 break-words">
+                                {fullContent.description}
+                              </p>
+                            </div>
+                          </div>
+                        </section>
+                      )}
+
+                      {/* CONTENT */}
+
+                      {fullContent.content && (
+                        <section className="mt-10">
+                          <div className="flex items-center gap-3 mb-5">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-500">
+                              Documentation
+                            </span>
+
+                            <div className="h-px flex-1 bg-slate-200" />
+                          </div>
+
+                          <div className="relative">
+                            <div
+                              className={`
+                                archive-html-content
+                                text-sm
+                                sm:text-[15px]
+                                leading-7
+                                pt-1
+                                ${!isExpanded ? "content-collapsed" : ""}
+                              `}
+                              dangerouslySetInnerHTML={{
+                                __html: fullContent.content,
+                              }}
+                            />
+
+                            {!isExpanded && (
+                              <div className="relative z-10 -mt-2 pt-8 flex justify-center">
+                                <button
+                                  onClick={() => setIsExpanded(true)}
+                                  className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/20 transition"
+                                >
+                                  Baca Selengkapnya
+                                  <ChevronRight size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      )}
+
+                      {/* FOOTER */}
+
+                      <footer className="mt-14 pt-6 border-t border-slate-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            DOCUMENT LOADED
+                          </div>
+
+                          <span className="text-[10px] text-slate-400">
+                            Documentation Archive
+                          </span>
+                        </div>
+                      </footer>
+                    </div>
+                  )}
+
+                  {/* EMPTY */}
+
+                  {!loadingContent && !fullContent && !contentError && (
+                    <div className="min-h-[500px] flex items-center justify-center">
+                      <div className="text-center">
+                        <BookOpen
+                          size={28}
+                          className="mx-auto text-indigo-500"
+                        />
+
+                        <h2 className="mt-4 text-lg font-bold text-slate-900">
+                          Select a document
+                        </h2>
+
+                        <p className="mt-2 text-sm text-slate-500">
+                          Pilih dokumentasi dari daftar archive.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </article>
             </div>
           </section>
         </div>
       </main>
 
       {/* ======================================================
-          IMAGE FULLSCREEN MODAL
+          IMAGE MODAL
       ====================================================== */}
+
       {showImagePreview && fullContent?.image_url && (
         <div
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
+          className="fixed inset-0 z-[100] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-8"
           onClick={() => setShowImagePreview(false)}
         >
           <button
             onClick={() => setShowImagePreview(false)}
-            className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-slate-900/80 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition"
+            className="absolute right-5 top-5 w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 transition"
           >
             <X size={18} />
           </button>
